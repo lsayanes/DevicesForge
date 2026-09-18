@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <cmath>
 #include <complex>
+#include <fstream>
 #include <memory>
 #include <vector>
 
@@ -11,6 +12,7 @@
 #include "dsp/RingCaptureBuffer.h"
 #include "dsp/IRPostProcessor.h"
 #include "dsp/SweepDeconvolver.h"
+#include "dsp/IRExporter.h"
 
 using namespace DevicesForge;
 
@@ -405,6 +407,29 @@ TEST(IRPostProcessorTest, ProcessAppliesWindowAndNorm) {
 // ============================================================================
 // SweepDeconvolver Tests
 // ============================================================================
+
+TEST(IRExporterTest, WritesAllFormatsToTempDir) {
+    const std::string base = "unit_test";
+    std::vector<float> ir = {0.0f, 0.5f, -1.0f, 0.25f};
+
+    ASSERT_TRUE(IRExporter::exportAllFormats(base, ir.data(), static_cast<int32_t>(ir.size()), 48000.0));
+
+    IRExportRequest req;
+    req.samples = ir.data();
+    req.numSamples = static_cast<int32_t>(ir.size());
+    req.sampleRate = 48000.0;
+    req.format = IRExportFormat::WavPcm24;
+    req.filePath = IRExporter::defaultExportDirectory() + "/" + base + "/IR.wav";
+
+    std::ifstream check(req.filePath, std::ios::binary);
+    ASSERT_TRUE(check.good());
+    char riff[4] = {};
+    check.read(riff, 4);
+    EXPECT_EQ(riff[0], 'R');
+    EXPECT_EQ(riff[1], 'I');
+    EXPECT_EQ(riff[2], 'F');
+    EXPECT_EQ(riff[3], 'F');
+}
 
 TEST(SweepDeconvolverTest, IdentityRecordedMatchesReference) {
     std::vector<float> ref(512);

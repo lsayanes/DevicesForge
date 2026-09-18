@@ -87,6 +87,8 @@ namespace DevicesForge
 		constexpr uint32_t SIGNAL_TYPE = 1005;
 		constexpr uint32_t SIGNAL_DURATION = 1006;
 		constexpr uint32_t GENERATE = 1007;
+		constexpr uint32_t EXPORT_FORMAT = 1008;
+		constexpr uint32_t EXPORT = 1009;
 	}
 
 	struct IRMetadata 

@@ -11,6 +11,7 @@ set(DSP_SOURCES
     dsp/RingCaptureBuffer.cpp
     dsp/IRPostProcessor.cpp
     dsp/SweepDeconvolver.cpp
+    dsp/IRExporter.cpp
 )
 
 set(DSP_HEADERS
@@ -21,6 +22,7 @@ set(DSP_HEADERS
     dsp/RingCaptureBuffer.h
     dsp/IRPostProcessor.h
     dsp/SweepDeconvolver.h
+    dsp/IRExporter.h
     plugin/DevicesForge.h
 )
 

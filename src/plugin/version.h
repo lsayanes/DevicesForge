@@ -11,4 +11,4 @@
 #define stringPluginName "DevicesForge"
 #define stringCompanyName "lsayanes & DevicesForge"
 #define stringCompanyWeb "www.leandrosayanes.com.ar"
-#define stringCompanyEmail "leandro.sayanest@gmail.com"
+#define stringCompanyEmail "leandro.sayanes@gmail.com"

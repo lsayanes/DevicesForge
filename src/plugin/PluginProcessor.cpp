@@ -3,6 +3,7 @@
 
 #include "../dsp/IRPostProcessor.h"
 #include "../dsp/SweepDeconvolver.h"
+#include "../dsp/IRExporter.h"
 
 #include "pluginterfaces/base/ibstream.h"
 #include "pluginterfaces/vst/ivstparameterchanges.h"
@@ -60,6 +61,7 @@ namespace Steinberg
                 captureBuffer.prepare(processSetup.sampleRate, DevicesForge::NUM_CHANNELS);
                 prevGenerateOn = paramGenerate >= 0.5f;
                 prevCaptureComplete = false;
+                prevExportOn = paramExport >= 0.5f;
             } 
             else 
             {
@@ -115,6 +117,14 @@ namespace Steinberg
                                 if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue) 
                                     paramGenerate = static_cast<float>(value);
                                 break;
+                            case DevicesForge::PluginParamIDs::EXPORT_FORMAT:
+                                if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue) 
+                                    paramExportFormat = static_cast<float>(value);
+                                break;
+                            case DevicesForge::PluginParamIDs::EXPORT:
+                                if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue) 
+                                    paramExport = static_cast<float>(value);
+                                break;
                         }
                     }
                 }
@@ -146,6 +156,11 @@ namespace Steinberg
             }
 
             prevGenerateOn = generateOn;
+
+            const bool exportOn = paramExport >= 0.5f;
+            if (exportOn && !prevExportOn)
+                exportCurrentIR(false);
+            prevExportOn = exportOn;
 
             const float gainLinear = outputGainLinear(paramOutputGain);
 
@@ -279,6 +294,43 @@ namespace Steinberg
 
             convolver.getIRManager().clear();
             convolver.getIRManager().setLevelIR(0, ir, 0.0f);
+
+            const double sampleRate = captureBuffer.getMetadata().sampleRate;
+            const std::string sessionDir = "latest";
+            DevicesForge::IRExporter::exportAllFormats(sessionDir, ir.data(),
+                                                       static_cast<int32_t>(ir.size()), sampleRate);
+
+            const std::string capturePath = DevicesForge::IRExporter::defaultExportDirectory() + "/" +
+                                            sessionDir + "/capture_raw.float.wav";
+            DevicesForge::IRExporter::exportCaptureRawWavFloat(capturePath, recorded, recordedLength,
+                                                                 sampleRate);
+        }
+
+        void DevicesForgeProcessor::exportCurrentIR(bool allFormats)
+        {
+            const float* ir = convolver.getIRManager().getIR(0);
+            const int32_t length = convolver.getIRManager().getIRLength(0);
+            if (!ir || length <= 0)
+                return;
+
+            const double sampleRate = processSetup.sampleRate > 0.0 ? processSetup.sampleRate
+                                                                    : DevicesForge::SAMPLE_RATE_DEFAULT;
+            const std::string sessionDir = "latest";
+
+            if (allFormats)
+            {
+                DevicesForge::IRExporter::exportAllFormats(sessionDir, ir, length, sampleRate);
+                return;
+            }
+
+            DevicesForge::IRExportRequest request;
+            request.format = DevicesForge::normalizedToExportFormat(paramExportFormat);
+            request.samples = ir;
+            request.numSamples = length;
+            request.sampleRate = sampleRate;
+            request.filePath = DevicesForge::IRExporter::defaultExportDirectory() + "/" + sessionDir +
+                               "/IR" + DevicesForge::IRExporter::formatExtension(request.format);
+            DevicesForge::IRExporter::exportBuffer(request);
         }
 
         DevicesForgeController::DevicesForgeController() {}
@@ -319,6 +371,17 @@ namespace Steinberg
 
             parameters.addParameter(STR16("Generate"), nullptr, 1, 0.0,
                 ParameterInfo::kCanAutomate, DevicesForge::PluginParamIDs::GENERATE);
+
+            auto* exportFormatParam = new StringListParameter(STR16("ExportFmt"),
+                DevicesForge::PluginParamIDs::EXPORT_FORMAT);
+            exportFormatParam->appendString(STR16("WAV24"));
+            exportFormatParam->appendString(STR16("WAV32f"));
+            exportFormatParam->appendString(STR16("AIFF96"));
+            exportFormatParam->appendString(STR16("DFIR"));
+            parameters.addParameter(exportFormatParam);
+
+            parameters.addParameter(STR16("Export"), nullptr, 1, 0.0,
+                ParameterInfo::kCanAutomate, DevicesForge::PluginParamIDs::EXPORT);
 
             return kResultOk;
         }

@@ -17,6 +17,7 @@ Documentación detallada en [`docs/`](docs/):
 - [`docs/CAPTURE-WORKFLOW.md`](docs/CAPTURE-WORKFLOW.md) — flujo de captura en estudio (diseño)
 - [`docs/CAPTURE-RING-BUFFER.md`](docs/CAPTURE-RING-BUFFER.md) — ring buffer, pre/post-trigger y disparo con Generate
 - [`docs/WINDOWING-NORMALIZATION.md`](docs/WINDOWING-NORMALIZATION.md) — ventaneo Hanning/Kaiser y normalización de pico de IR
+- [`docs/EXPORT-FORMATS.md`](docs/EXPORT-FORMATS.md) — WAV / AIFF / DFIR y carpeta `exports/latest`
 
 ---
 
@@ -47,11 +48,11 @@ El repositorio compila un VST3 válido (pasa el **validator** del VST3 SDK). Par
 | `SignalGenerator` | Sweep log, Dirac, pink noise, MLS; cableado a `process()` |
 | `RingCaptureBuffer` | Ring estéreo + captura mono; **disparo automático** al activar Generate |
 | `SweepDeconvolver` + `IRPostProcessor` | Deconvolución FFT al completar captura; Hanning + peak norm → `IRManager` |
-| UI / export captura | Editor y WAV pendientes; ver [`docs/CAPTURE-RING-BUFFER.md`](docs/CAPTURE-RING-BUFFER.md) |
+| `IRExporter` | Auto-export a `~/Documents/DevicesForge/exports/latest/`; params **ExportFmt** + **Export** |
 | `ONNXInference` | Enlazado si hay ONNX Runtime; **sin** carga de modelo en runtime |
 | Editor gráfico (VSTGUI) | **No** |
 
-Para probar hoy: cargar el plugin en un DAW (p. ej. Cubase), **Generate** con retorno cableado (captura automática) y **Gain**. Ver [Probar en el DAW](#probar-en-el-daw) y [`docs/CAPTURE-RING-BUFFER.md`](docs/CAPTURE-RING-BUFFER.md).
+Para probar hoy: **Generate** con retorno cableado → revisar archivos en [`docs/EXPORT-FORMATS.md`](docs/EXPORT-FORMATS.md). Ver [Probar en el DAW](#probar-en-el-daw).
 
 ---
 
@@ -201,6 +202,8 @@ Genera `test_output.wav` con un seno de prueba (útil para humo, no sustituye el
 | 1005 | Signal | Sweep / Dirac / Pink / MLS (**activo** con Generate) |
 | 1006 | Duration | 0.5–5.0 s (Dirac ignora este valor) |
 | 1007 | Generate | On/off; flanco Off→On dispara un one-shot de la señal |
+| 1008 | ExportFmt | WAV24 / WAV32f / AIFF96 / DFIR |
+| 1009 | Export | Off→On exporta la última IR al formato elegido |
 
 Constantes en [`src/plugin/DevicesForge.h`](src/plugin/DevicesForge.h).
 

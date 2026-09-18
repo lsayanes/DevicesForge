@@ -54,8 +54,12 @@ namespace Steinberg
             float paramGenerate = 0.0f;
             bool prevGenerateOn = false;
             bool prevCaptureComplete = false;
+            float paramExportFormat = 0.0f;
+            float paramExport = 0.0f;
+            bool prevExportOn = false;
 
             void processCompletedCapture();
+            void exportCurrentIR(bool allFormats);
 
             float vuMeter = 0.0f;
         };

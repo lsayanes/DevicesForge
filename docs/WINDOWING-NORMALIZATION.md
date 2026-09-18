@@ -64,7 +64,7 @@ Al pasar la captura a estado **Complete** (`RingCaptureBuffer::isComplete()`), e
 3. Aplica Hanning + peak norm vía `IRPostProcessor::process`.
 4. Guarda la IR en `DynamicConvolver` → `IRManager` (nivel 0).
 
-Todavía **no** hay export WAV ni parámetros VST para elegir ventana; eso puede añadirse en Fase 2.4 / editor.
+Tras procesar, la IR se exporta automáticamente (ver [`EXPORT-FORMATS.md`](EXPORT-FORMATS.md)).
 
 ## Verificación
 

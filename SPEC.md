@@ -215,7 +215,7 @@ Input Chain:
 - [x] Múltiples señales de excitación
 - [x] Ring buffer con pre-trigger
 - [x] Windowing y normalización
-- [ ] Export multi-formato
+- [x] Export multi-formato
 
 ### Fase 3: AI (Semanas 9-12)
 - [ ] Entrenar modelo de denoising
