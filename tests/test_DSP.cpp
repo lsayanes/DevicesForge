@@ -9,6 +9,8 @@
 #include "dsp/DynamicConvolver.h"
 #include "dsp/SignalGenerator.h"
 #include "dsp/RingCaptureBuffer.h"
+#include "dsp/IRPostProcessor.h"
+#include "dsp/SweepDeconvolver.h"
 
 using namespace DevicesForge;
 
@@ -47,7 +49,7 @@ TEST_F(FFTProcessorTest, ForwardInverse) {
     // Create test signal
     std::vector<float> input(1024);
     for (int i = 0; i < 1024; ++i) {
-        input[i] = std::sin(2.0f * M_PI * 440.0f * i / 48000.0f);
+        input[i] = std::sin(kTwoPiF * 440.0f * i / 48000.0f);
     }
 
     // Forward FFT
@@ -367,6 +369,64 @@ TEST_F(RingCaptureBufferTest, StereoToMonoAverage) {
 
     ASSERT_TRUE(capture->isComplete());
     ASSERT_FLOAT_EQ(capture->getCapturedMono()[0], 0.0f);
+}
+
+// ============================================================================
+// IRPostProcessor Tests
+// ============================================================================
+
+TEST(IRPostProcessorTest, HanningAttenuatesEnds) {
+    std::vector<float> ir(101, 1.0f);
+    IRPostProcessor::applyHanning(ir.data(), static_cast<int32_t>(ir.size()));
+    EXPECT_NEAR(ir.front(), 0.0f, 1e-5f);
+    EXPECT_NEAR(ir.back(), 0.0f, 1e-5f);
+    EXPECT_GT(ir[50], 0.9f);
+}
+
+TEST(IRPostProcessorTest, NormalizePeakToTarget) {
+    std::vector<float> ir = { 0.2f, -0.4f, 0.1f };
+    const float peakBefore = IRPostProcessor::normalizePeak(ir.data(), static_cast<int32_t>(ir.size()), 1.0f);
+    EXPECT_FLOAT_EQ(peakBefore, 0.4f);
+    EXPECT_FLOAT_EQ(ir[1], -1.0f);
+}
+
+TEST(IRPostProcessorTest, ProcessAppliesWindowAndNorm) {
+    std::vector<float> ir(64, 1.0f);
+    IRPostProcessSettings settings;
+    settings.windowType = IRWindowType::Hanning;
+    IRPostProcessor::process(ir, settings);
+    float peak = 0.0f;
+    for (float s : ir)
+        peak = std::max(peak, std::abs(s));
+    EXPECT_NEAR(peak, 1.0f, 1e-5f);
+    EXPECT_NEAR(ir.front(), 0.0f, 1e-5f);
+}
+
+// ============================================================================
+// SweepDeconvolver Tests
+// ============================================================================
+
+TEST(SweepDeconvolverTest, IdentityRecordedMatchesReference) {
+    std::vector<float> ref(512);
+    for (int i = 0; i < 512; ++i)
+        ref[static_cast<size_t>(i)] =
+            std::sin(kTwoPiF * 440.0f * static_cast<float>(i) / 48000.0f);
+
+    std::vector<float> ir;
+    ASSERT_TRUE(SweepDeconvolver::deconvolve(ref.data(), 512, ref.data(), 512, ir, 1024));
+    ASSERT_GT(ir.size(), 0u);
+
+    int32_t peakIndex = 0;
+    float peakValue = 0.0f;
+    for (int32_t i = 0; i < static_cast<int32_t>(ir.size()); ++i) {
+        const float v = std::abs(ir[static_cast<size_t>(i)]);
+        if (v > peakValue) {
+            peakValue = v;
+            peakIndex = i;
+        }
+    }
+    EXPECT_LT(peakIndex, 32);
+    EXPECT_GT(peakValue, 0.1f);
 }
 
 // ============================================================================

@@ -53,6 +53,9 @@ namespace Steinberg
             float paramSignalDuration = DevicesForge::signalDurationNormalizedDefault();
             float paramGenerate = 0.0f;
             bool prevGenerateOn = false;
+            bool prevCaptureComplete = false;
+
+            void processCompletedCapture();
 
             float vuMeter = 0.0f;
         };

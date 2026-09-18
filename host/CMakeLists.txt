@@ -31,6 +31,7 @@ target_include_directories(DevicesForgeHost
     PRIVATE
         ${VST3SDK_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/src
 )
 
 target_link_libraries(DevicesForgeHost

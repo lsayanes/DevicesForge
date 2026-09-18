@@ -1,6 +1,9 @@
 #include "PluginProcessor.h"
 #include "public.sdk/source/vst/vstaudioprocessoralgo.h"
 
+#include "../dsp/IRPostProcessor.h"
+#include "../dsp/SweepDeconvolver.h"
+
 #include "pluginterfaces/base/ibstream.h"
 #include "pluginterfaces/vst/ivstparameterchanges.h"
 #include "public.sdk/source/vst/vstparameters.h"
@@ -56,6 +59,7 @@ namespace Steinberg
                 generator.prepare(processSetup.sampleRate);
                 captureBuffer.prepare(processSetup.sampleRate, DevicesForge::NUM_CHANNELS);
                 prevGenerateOn = paramGenerate >= 0.5f;
+                prevCaptureComplete = false;
             } 
             else 
             {
@@ -161,6 +165,11 @@ namespace Steinberg
                 captureBuffer.push(channelPtrs, inChannels, data.numSamples);
             }
 
+            const bool captureComplete = captureBuffer.isComplete();
+            if (captureComplete && !prevCaptureComplete)
+                processCompletedCapture();
+            prevCaptureComplete = captureComplete;
+
             if (data.numOutputs == 0) 
                 return kResultOk;
 
@@ -244,6 +253,32 @@ namespace Steinberg
             streamer.writeFloat(paramSignalDuration);
 
             return kResultOk;
+        }
+
+        void DevicesForgeProcessor::processCompletedCapture()
+        {
+            const float* recorded = captureBuffer.getCapturedMono();
+            const int32_t recordedLength = captureBuffer.getCapturedLength();
+            const float* reference = generator.getReference();
+            const int32_t referenceLength = generator.getReferenceLength();
+
+            if (!recorded || recordedLength <= 0 || !reference || referenceLength <= 0)
+                return;
+
+            std::vector<float> ir;
+            if (!DevicesForge::SweepDeconvolver::deconvolve(recorded, recordedLength, reference,
+                                                            referenceLength, ir, DevicesForge::FFT_SIZE))
+                return;
+
+            DevicesForge::IRPostProcessSettings settings;
+            settings.windowType = DevicesForge::IRWindowType::Hanning;
+            DevicesForge::IRPostProcessor::process(ir, settings);
+
+            if (ir.empty())
+                return;
+
+            convolver.getIRManager().clear();
+            convolver.getIRManager().setLevelIR(0, ir, 0.0f);
         }
 
         DevicesForgeController::DevicesForgeController() {}

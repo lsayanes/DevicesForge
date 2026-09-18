@@ -166,6 +166,21 @@ namespace DevicesForge
 		levels.clear();
 	}
 
+	void IRManager::setLevelIR(int32_t levelIndex, const std::vector<float>& data, float levelDB)
+	{
+		if (data.empty())
+			return;
+
+		while (static_cast<int32_t>(levels.size()) <= levelIndex)
+			levels.push_back(IRLevel());
+
+		levels[levelIndex].data = data;
+		levels[levelIndex].levelDB = levelDB;
+		levels[levelIndex].metadata.length = static_cast<int32_t>(data.size());
+		levels[levelIndex].metadata.levelDB = levelDB;
+		levels[levelIndex].metadata.name = "Captured IR";
+	}
+
 	void IRManager::generateTestIR(int32_t length, float freq) 
 	{
 		IRLevel level;
@@ -175,7 +190,7 @@ namespace DevicesForge
 		float sampleRate = 48000.0f;
 		for (int32_t i = 0; i < length; ++i) {
 			float t = static_cast<float>(i) / sampleRate;
-			level.data[i] = std::sin(2.0f * 3.14159265f * freq * t) *
+			level.data[i] = std::sin(kTwoPiF * freq * t) *
 						std::exp(-3.0f * t);
 		}
 

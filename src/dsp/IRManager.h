@@ -38,6 +38,8 @@ namespace DevicesForge
 		// Generate test IR (for development)
 		void generateTestIR(int32_t length = 1024, float freq = 1000.0f);
 
+		void setLevelIR(int32_t levelIndex, const std::vector<float>& data, float levelDB = 0.0f);
+
 	private:
 		struct IRLevel 
 		{

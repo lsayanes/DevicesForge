@@ -16,6 +16,7 @@ Documentación detallada en [`docs/`](docs/):
 - [`docs/DEPENDENCIES.md`](docs/DEPENDENCIES.md) — herramientas y librerías
 - [`docs/CAPTURE-WORKFLOW.md`](docs/CAPTURE-WORKFLOW.md) — flujo de captura en estudio (diseño)
 - [`docs/CAPTURE-RING-BUFFER.md`](docs/CAPTURE-RING-BUFFER.md) — ring buffer, pre/post-trigger y disparo con Generate
+- [`docs/WINDOWING-NORMALIZATION.md`](docs/WINDOWING-NORMALIZATION.md) — ventaneo Hanning/Kaiser y normalización de pico de IR
 
 ---
 
@@ -45,6 +46,7 @@ El repositorio compila un VST3 válido (pasa el **validator** del VST3 SDK). Par
 | `FFTProcessor`, `IRManager`, `DynamicConvolver` | Implementados; tests unitarios; convolver **no** llamado desde `process()` |
 | `SignalGenerator` | Sweep log, Dirac, pink noise, MLS; cableado a `process()` |
 | `RingCaptureBuffer` | Ring estéreo + captura mono; **disparo automático** al activar Generate |
+| `SweepDeconvolver` + `IRPostProcessor` | Deconvolución FFT al completar captura; Hanning + peak norm → `IRManager` |
 | UI / export captura | Editor y WAV pendientes; ver [`docs/CAPTURE-RING-BUFFER.md`](docs/CAPTURE-RING-BUFFER.md) |
 | `ONNXInference` | Enlazado si hay ONNX Runtime; **sin** carga de modelo en runtime |
 | Editor gráfico (VSTGUI) | **No** |

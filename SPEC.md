@@ -214,7 +214,7 @@ Input Chain:
 ### Fase 2: Core (Semanas 5-8)
 - [x] Múltiples señales de excitación
 - [x] Ring buffer con pre-trigger
-- [ ] Windowing y normalización
+- [x] Windowing y normalización
 - [ ] Export multi-formato
 
 ### Fase 3: AI (Semanas 9-12)

@@ -11,7 +11,7 @@ Grabar en memoria la señal que **entra** al plugin (retorno del dispositivo ví
 
 El disparo es **automático** en el mismo instante en que activás **Generate** (flanco Off → On), alineado con el arranque del [`SignalGenerator`](../src/dsp/SignalGenerator.cpp).
 
-La captura queda en RAM (mono, promedio L/R) para deconvolución en una fase posterior. **No** exporta WAV todavía.
+La captura queda en RAM (mono, promedio L/R). Al completarse, el plugin ejecuta deconvolución + ventaneo + normalización (ver [`WINDOWING-NORMALIZATION.md`](WINDOWING-NORMALIZATION.md)). **No** exporta WAV todavía.
 
 ## Cadena en el estudio
 

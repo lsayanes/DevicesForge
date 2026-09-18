@@ -10,7 +10,6 @@ namespace DevicesForge
 
 	namespace
 	{
-		constexpr double kPi = 3.14159265358979323846;
 		constexpr float kSweepFadeSeconds = 0.010f;
 
 		int32_t durationToSamples(float seconds, double sampleRate)

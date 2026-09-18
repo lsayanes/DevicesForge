@@ -18,14 +18,16 @@
 #include "base/source/fstreamer.h"
 #include "base/source/fstring.h"
 
+#include "plugin/DevicesForge.h"
+
 using namespace Steinberg;
 using namespace Steinberg::Vst;
 
 void generateSine(float* buffer, int32 numSamples, float freq, float sampleRate, float& phase) {
     for (int32 i = 0; i < numSamples; ++i) {
         buffer[i] = std::sin(phase);
-        phase += 2.0f * 3.14159265f * freq / sampleRate;
-        if (phase > 2.0f * 3.14159265f) phase -= 2.0f * 3.14159265f;
+        phase += DevicesForge::kTwoPiF * freq / sampleRate;
+        if (phase > DevicesForge::kTwoPiF) phase -= DevicesForge::kTwoPiF;
     }
 }
 

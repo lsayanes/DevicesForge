@@ -7,6 +7,12 @@
 namespace DevicesForge 
 {
 
+	/** Pi and common multiples (DSP, tests, host). */
+	constexpr double kPi = 3.14159265358979323846;
+	constexpr float kPiF = static_cast<float>(kPi);
+	constexpr double kTwoPi = 2.0 * kPi;
+	constexpr float kTwoPiF = static_cast<float>(kTwoPi);
+
 	constexpr const char* PLUGIN_NAME = "DevicesForge";
 	constexpr const char* PLUGIN_VENDOR = "lsayanes & DevicesForge";
 	constexpr const int32_t PLUGIN_VERSION_MAJOR = 1;
@@ -47,6 +53,9 @@ namespace DevicesForge
 	constexpr float CAPTURE_POST_TAIL_SEC = 0.250f;
 	constexpr float CAPTURE_MONITOR_SEC =
 		CAPTURE_PRE_SEC + SIGNAL_DURATION_MAX + CAPTURE_POST_TAIL_SEC + 0.5f;
+
+	constexpr float IR_NORMALIZE_PEAK_TARGET = 1.0f;
+	constexpr float IR_KAISER_BETA_DEFAULT = 5.0f;
 
 	inline float signalDurationNormalizedDefault()
 	{
