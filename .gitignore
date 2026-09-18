@@ -41,3 +41,9 @@ Makefile
 
 # Test output
 Testing/
+
+# ML lab (generated data / weights)
+ml/.venv/
+ml/data/synthetic/
+ml/checkpoints/
+ml/models/*.onnx

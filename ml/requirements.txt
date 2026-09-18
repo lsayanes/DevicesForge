@@ -1,0 +1,8 @@
+# DevicesForge ml/ — laboratorio denoise (Fase 3)
+numpy>=1.24
+scipy>=1.10
+soundfile>=0.12
+torch>=2.1
+onnx>=1.15
+onnxscript>=0.1.0
+onnxruntime>=1.16

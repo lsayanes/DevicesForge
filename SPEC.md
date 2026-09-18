@@ -218,10 +218,10 @@ Input Chain:
 - [x] Export multi-formato
 
 ### Fase 3: AI (Semanas 9-12)
-- [ ] Entrenar modelo de denoising
-- [ ] Integrar ONNX Runtime
-- [ ] API cloud fallback
-- [ ] Optimización de IR
+- [ ] Entrenar modelo de denoising (STFT U-Net → ONNX); ver [`docs/AI-PHASE3.md`](docs/AI-PHASE3.md)
+- [ ] Integrar ONNX Runtime en post-captura (STFT + overlap-add, param **AI**)
+- [ ] ~~API cloud fallback~~ — pospuesto hasta IA local estable
+- [ ] Denoise de IR (MVP); extrapolación / style transfer fuera de alcance inicial
 
 ### Fase 4: Polish (Semanas 13-16)
 - [ ] UI profesional

@@ -18,6 +18,8 @@ Documentación detallada en [`docs/`](docs/):
 - [`docs/CAPTURE-RING-BUFFER.md`](docs/CAPTURE-RING-BUFFER.md) — ring buffer, pre/post-trigger y disparo con Generate
 - [`docs/WINDOWING-NORMALIZATION.md`](docs/WINDOWING-NORMALIZATION.md) — ventaneo Hanning/Kaiser y normalización de pico de IR
 - [`docs/EXPORT-FORMATS.md`](docs/EXPORT-FORMATS.md) — WAV / AIFF / DFIR y carpeta `exports/latest`
+- [`docs/AI-PHASE3-GUIA.md`](docs/AI-PHASE3-GUIA.md) — Fase 3 IA: guía práctica (laboratorio Python)
+- [`docs/AI-PHASE3.md`](docs/AI-PHASE3.md) — Fase 3: spec técnica STFT + ONNX; scripts en [`ml/`](ml/)
 
 ---
 
@@ -233,10 +235,9 @@ Valor genérico `"Fx"` suele listarse como *Otros*. Para ubicarlo mejor (p. ej. 
 
 Ver checklist completo en [`docs/SPEC.md`](docs/SPEC.md):
 
-- Fase 2: processor completo, editor, parámetros conectados  
-- Fase 3: convolver en `process()`, captura multi-nivel  
-- Fase 4: modelo ONNX de denoise  
-- Fase 5: UI, presets, QA  
+- Fase 2: captura, deconvolución, export — **hecho** (ver [`docs/SPEC.md`](docs/SPEC.md))  
+- Fase 3: denoise IA local (STFT + ONNX); ver [`docs/AI-PHASE3.md`](docs/AI-PHASE3.md)  
+- Fase 4: UI, convolver en `process()`, presets, QA  
 
 ---
 
@@ -251,4 +252,4 @@ Ver checklist completo en [`docs/SPEC.md`](docs/SPEC.md):
 
 ## Autor
 
-**lsayanes & DevicesForge** — contacto en [`src/plugin/version.h`](src/plugin/version.h).
+**Leandro Sayanes** — contacto en [`src/plugin/version.h`](src/plugin/version.h).

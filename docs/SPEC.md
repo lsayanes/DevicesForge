@@ -75,7 +75,7 @@ Captura Multi-Nivel:
 ### 4.4 DSP Engine
 
 **Componentes:**
-- `FFTProcessor` - Wrapper de pffft
+- `FFTProcessor` - Wrapper de pffft (ver [FFT-PROCESSOR.md](FFT-PROCESSOR.md) para documentación detallada)
 - `IRManager` - Gestión de IRs multi-nivel
 - `DynamicConvolver` - Motor de convolución dinámica
 
