@@ -3,192 +3,283 @@
 
 #include "pluginterfaces/base/ibstream.h"
 #include "pluginterfaces/vst/ivstparameterchanges.h"
+#include "public.sdk/source/vst/vstparameters.h"
 #include "base/source/fstreamer.h"
 
+#include <algorithm>
 #include <cstring>
 #include <cmath>
 
-namespace Steinberg {
-namespace Vst {
+namespace Steinberg 
+{
+    namespace Vst 
+    {
 
-// ============================================================================
-// Processor Implementation
-// ============================================================================
-
-DevicesForgeProcessor::DevicesForgeProcessor() {
-    setControllerClass(DevicesForgeControllerUID);
-}
-
-DevicesForgeProcessor::~DevicesForgeProcessor() {}
-
-tresult PLUGIN_API DevicesForgeProcessor::initialize(FUnknown* context) {
-    tresult result = AudioEffect::initialize(context);
-    if (result != kResultOk) return result;
-
-    addAudioInput(STR16("Stereo In"), SpeakerArr::kStereo);
-    addAudioOutput(STR16("Stereo Out"), SpeakerArr::kStereo);
-    addEventInput(STR16("Event In"), 1);
-
-    return kResultOk;
-}
-
-tresult PLUGIN_API DevicesForgeProcessor::terminate() {
-    return AudioEffect::terminate();
-}
-
-tresult PLUGIN_API DevicesForgeProcessor::setActive(TBool state) {
-    if (state) {
-        convolver.prepare(processSetup.sampleRate, DevicesForge::FFT_SIZE);
-    } else {
-        convolver.reset();
-    }
-    return AudioEffect::setActive(state);
-}
-
-tresult PLUGIN_API DevicesForgeProcessor::process(ProcessData& data) {
-    // 1) Read input parameter changes
-    if (IParameterChanges* paramChanges = data.inputParameterChanges) {
-        int32 numParamsChanged = paramChanges->getParameterCount();
-        for (int32 i = 0; i < numParamsChanged; i++) {
-            if (IParamValueQueue* paramQueue = paramChanges->getParameterData(i)) {
-                ParamValue value;
-                int32 sampleOffset;
-                int32 numPoints = paramQueue->getPointCount();
-                switch (paramQueue->getParameterId()) {
-                    case DevicesForge::PluginParamIDs::MIX:
-                        if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue) {
-                            paramMix = static_cast<float>(value);
-                        }
-                        break;
-                    case DevicesForge::PluginParamIDs::OUTPUT_GAIN:
-                        if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue) {
-                            paramOutputGain = static_cast<float>(value);
-                        }
-                        break;
-                    case DevicesForge::PluginParamIDs::IR_SELECT:
-                        if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue) {
-                            paramIRSelect = static_cast<float>(value);
-                        }
-                        break;
-                    case DevicesForge::PluginParamIDs::AI_DENOISE:
-                        if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue) {
-                            paramAIDenoise = static_cast<float>(value);
-                        }
-                        break;
-                }
+        namespace 
+        {
+            float outputGainLinear(float normalizedGain)
+            {
+                return std::pow(10.0f, (normalizedGain * 24.0f - 12.0f) / 20.0f);
             }
         }
-    }
 
-    // 2) Process audio
-    if (data.numInputs == 0 || data.numOutputs == 0) {
-        return kResultOk;
-    }
-
-    int32 numChannels = data.inputs[0].numChannels;
-    uint32 sampleFramesSize = getSampleFramesSizeInBytes(processSetup, data.numSamples);
-    void** in = getChannelBuffersPointer(processSetup, data.inputs[0]);
-    void** out = getChannelBuffersPointer(processSetup, data.outputs[0]);
-
-    // Check if silence
-    if (data.inputs[0].silenceFlags == getChannelMask(data.inputs[0].numChannels)) {
-        data.outputs[0].silenceFlags = data.inputs[0].silenceFlags;
-        return kResultOk;
-    }
-
-    // Process
-    for (int32 channel = 0; channel < numChannels; ++channel) {
-        float* inputBuffer = static_cast<float*>(in[channel]);
-        float* outputBuffer = static_cast<float*>(out[channel]);
-
-        // Apply output gain
-        float gainLinear = std::pow(10.0f, (paramOutputGain * 24.0f - 12.0f) / 20.0f);
-        for (int32 i = 0; i < data.numSamples; ++i) {
-            outputBuffer[i] = inputBuffer[i] * gainLinear;
+        DevicesForgeProcessor::DevicesForgeProcessor() 
+        {
+            setControllerClass(DevicesForgeControllerUID);
         }
-    }
 
-    // Mark output as not silent
-    data.outputs[0].silenceFlags = 0;
+        DevicesForgeProcessor::~DevicesForgeProcessor() {}
 
-    return kResultOk;
-}
+        tresult PLUGIN_API DevicesForgeProcessor::initialize(FUnknown* context) 
+        {
+            tresult result = AudioEffect::initialize(context);
+            if (result != kResultOk) return result;
 
-tresult PLUGIN_API DevicesForgeProcessor::setState(IBStream* state) {
-    if (!state) return kResultFalse;
+            addAudioInput(STR16("Stereo In"), SpeakerArr::kStereo);
+            addAudioOutput(STR16("Stereo Out"), SpeakerArr::kStereo);
+            addEventInput(STR16("Event In"), 1);
 
-    IBStreamer streamer(state, kLittleEndian);
-    float savedMix = 1.0f;
-    float savedGain = 0.0f;
-    
-    streamer.readFloat(savedMix);
-    streamer.readFloat(savedGain);
+            return kResultOk;
+        }
 
-    paramMix = savedMix;
-    paramOutputGain = savedGain;
+        tresult PLUGIN_API DevicesForgeProcessor::terminate() 
+        {
+            return AudioEffect::terminate();
+        }
 
-    return kResultOk;
-}
+        tresult PLUGIN_API DevicesForgeProcessor::setActive(TBool state) 
+        {
+            if (state) 
+            {
+                convolver.prepare(processSetup.sampleRate, DevicesForge::FFT_SIZE);
+                generator.prepare(processSetup.sampleRate);
+                prevGenerateOn = paramGenerate >= 0.5f;
+            } 
+            else 
+            {
+                convolver.reset();
+                generator.reset();
+            }
+            
+            return AudioEffect::setActive(state);
+        }
 
-tresult PLUGIN_API DevicesForgeProcessor::getState(IBStream* state) {
-    if (!state) return kResultFalse;
+        tresult PLUGIN_API DevicesForgeProcessor::process(ProcessData& data) 
+        {
+            if (IParameterChanges* paramChanges = data.inputParameterChanges) 
+            {
+                int32 numParamsChanged = paramChanges->getParameterCount();
+            
+                for (int32 i = 0; i < numParamsChanged; i++) 
+                {
+                    if (IParamValueQueue* paramQueue = paramChanges->getParameterData(i)) 
+                    {
+                        ParamValue value;
+                        int32 sampleOffset;
+                        int32 numPoints = paramQueue->getPointCount();
+                        
+                        switch (paramQueue->getParameterId()) 
+                        {
+                            case DevicesForge::PluginParamIDs::MIX:
+                                if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue) 
+                                    paramMix = static_cast<float>(value);
+                                break;
+                            case DevicesForge::PluginParamIDs::OUTPUT_GAIN:
+                                if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue) 
+                                    paramOutputGain = static_cast<float>(value);
+                                break;
+                            case DevicesForge::PluginParamIDs::IR_SELECT:
+                                if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue) 
+                                    paramIRSelect = static_cast<float>(value);
+                                break;
+                            case DevicesForge::PluginParamIDs::AI_DENOISE:
+                                if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue) 
+                                    paramAIDenoise = static_cast<float>(value);
+                                break;
+                            case DevicesForge::PluginParamIDs::SIGNAL_TYPE:
+                                if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue) 
+                                    paramSignalType = static_cast<float>(value);
+                                break;
+                            case DevicesForge::PluginParamIDs::SIGNAL_DURATION:
+                                if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue) 
+                                    paramSignalDuration = static_cast<float>(value);
+                                break;
+                            case DevicesForge::PluginParamIDs::GENERATE:
+                                if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue) 
+                                    paramGenerate = static_cast<float>(value);
+                                break;
+                        }
+                    }
+                }
+            }
 
-    IBStreamer streamer(state, kLittleEndian);
-    streamer.writeFloat(paramMix);
-    streamer.writeFloat(paramOutputGain);
+            const bool generateOn = paramGenerate >= 0.5f;
+            
+            if (generateOn && !prevGenerateOn) 
+            {
+                generator.setType(DevicesForge::normalizedToSignalType(paramSignalType));
+                generator.setDuration(DevicesForge::normalizedToDuration(paramSignalDuration));
+                generator.start();
+            }
+            
+            prevGenerateOn = generateOn;
 
-    return kResultOk;
-}
+            if (data.numOutputs == 0) 
+                return kResultOk;
 
-// ============================================================================
-// Controller Implementation
-// ============================================================================
+            void** out = getChannelBuffersPointer(processSetup, data.outputs[0]);
+            const int32 numOutChannels = data.outputs[0].numChannels;
+            const float gainLinear = outputGainLinear(paramOutputGain);
 
-DevicesForgeController::DevicesForgeController() {}
-DevicesForgeController::~DevicesForgeController() {}
+            if (generator.isPlaying()) 
+            {
+                float* dest = static_cast<float*>(out[0]);
+                generator.render(dest, data.numSamples);
+                for (int32 i = 0; i < data.numSamples; ++i) 
+                    dest[i] *= gainLinear;
+                
+                for (int32 channel = 1; channel < numOutChannels; ++channel) 
+                    std::memcpy(out[channel], dest, static_cast<size_t>(data.numSamples) * sizeof(float));
 
-tresult PLUGIN_API DevicesForgeController::initialize(FUnknown* context) {
-    tresult result = EditController::initialize(context);
-    if (result != kResultOk) return result;
+                data.outputs[0].silenceFlags = 0;
+                return kResultOk;
+            }
 
-    // Mix parameter (0-100%)
-    parameters.addParameter(STR16("Mix"), STR16("%"), 100, 1.0,
-        ParameterInfo::kCanAutomate, DevicesForge::PluginParamIDs::MIX);
+            if (data.numInputs == 0) 
+                return kResultOk;
 
-    // Gain parameter (-12 to +12 dB)
-    parameters.addParameter(STR16("Gain"), STR16("dB"), 100, 0.5,
-        ParameterInfo::kCanAutomate, DevicesForge::PluginParamIDs::OUTPUT_GAIN);
+            void** in = getChannelBuffersPointer(processSetup, data.inputs[0]);
+            const int32 numChannels = std::min(data.inputs[0].numChannels, numOutChannels);
 
-    // IR Select (0-3)
-    parameters.addParameter(STR16("IR"), nullptr, 3, 0.0,
-        ParameterInfo::kCanAutomate | ParameterInfo::kIsList, DevicesForge::PluginParamIDs::IR_SELECT);
+            if (data.inputs[0].silenceFlags == getChannelMask(data.inputs[0].numChannels)) 
+            {
+                data.outputs[0].silenceFlags = data.inputs[0].silenceFlags;
+                return kResultOk;
+            }
 
-    // AI Denoise (0 or 1)
-    parameters.addParameter(STR16("AI"), nullptr, 1, 0.0,
-        ParameterInfo::kCanAutomate, DevicesForge::PluginParamIDs::AI_DENOISE);
+            for (int32 channel = 0; channel < numChannels; ++channel) 
+            {
+                float* inputBuffer = static_cast<float*>(in[channel]);
+                float* outputBuffer = static_cast<float*>(out[channel]);
 
-    return kResultOk;
-}
+                for (int32 i = 0; i < data.numSamples; ++i) 
+                    outputBuffer[i] = inputBuffer[i] * gainLinear;
+            }
 
-tresult PLUGIN_API DevicesForgeController::terminate() {
-    return EditController::terminate();
-}
+            data.outputs[0].silenceFlags = 0;
+            return kResultOk;
+        }
 
-tresult PLUGIN_API DevicesForgeController::setComponentState(IBStream* state) {
-    if (!state) return kResultFalse;
+        tresult PLUGIN_API DevicesForgeProcessor::setState(IBStream* state) 
+        {
+            if (!state) 
+                return kResultFalse;
 
-    IBStreamer streamer(state, kLittleEndian);
-    float savedMix = 1.0f;
-    float savedGain = 0.0f;
-    
-    streamer.readFloat(savedMix);
-    streamer.readFloat(savedGain);
+            IBStreamer streamer(state, kLittleEndian);
+            float savedMix = 1.0f;
+            float savedGain = 0.0f;
+            float savedSignalType = 0.0f;
+            float savedDuration = DevicesForge::signalDurationNormalizedDefault();
 
-    setParamNormalized(DevicesForge::PluginParamIDs::MIX, savedMix);
-    setParamNormalized(DevicesForge::PluginParamIDs::OUTPUT_GAIN, savedGain);
+            streamer.readFloat(savedMix);
+            streamer.readFloat(savedGain);
+            streamer.readFloat(savedSignalType);
+            streamer.readFloat(savedDuration);
 
-    return kResultOk;
-}
+            paramMix = savedMix;
+            paramOutputGain = savedGain;
+            paramSignalType = savedSignalType;
+            paramSignalDuration = savedDuration;
+            paramGenerate = 0.0f;
+            prevGenerateOn = false;
 
-} // namespace Vst
-} // namespace Steinberg
+            return kResultOk;
+        }
+
+        tresult PLUGIN_API DevicesForgeProcessor::getState(IBStream* state) 
+        {
+            if (!state) 
+                return kResultFalse;
+
+            IBStreamer streamer(state, kLittleEndian);
+            streamer.writeFloat(paramMix);
+            streamer.writeFloat(paramOutputGain);
+            streamer.writeFloat(paramSignalType);
+            streamer.writeFloat(paramSignalDuration);
+
+            return kResultOk;
+        }
+
+        DevicesForgeController::DevicesForgeController() {}
+        DevicesForgeController::~DevicesForgeController() {}
+
+        tresult PLUGIN_API DevicesForgeController::initialize(FUnknown* context) 
+        {
+            tresult result = EditController::initialize(context);
+            if (result != kResultOk) 
+                return result;
+
+            parameters.addParameter(STR16("Mix"), STR16("%"), 100, 1.0,
+                ParameterInfo::kCanAutomate, DevicesForge::PluginParamIDs::MIX);
+
+            parameters.addParameter(STR16("Gain"), STR16("dB"), 100, 0.5,
+                ParameterInfo::kCanAutomate, DevicesForge::PluginParamIDs::OUTPUT_GAIN);
+
+            parameters.addParameter(STR16("IR"), nullptr, 3, 0.0,
+                ParameterInfo::kCanAutomate | ParameterInfo::kIsList, DevicesForge::PluginParamIDs::IR_SELECT);
+
+            parameters.addParameter(STR16("AI"), nullptr, 1, 0.0,
+                ParameterInfo::kCanAutomate, DevicesForge::PluginParamIDs::AI_DENOISE);
+
+            auto* signalParam = new StringListParameter(STR16("Signal"),
+                DevicesForge::PluginParamIDs::SIGNAL_TYPE);
+            signalParam->appendString(STR16("Sweep"));
+            signalParam->appendString(STR16("Dirac"));
+            signalParam->appendString(STR16("Pink"));
+            signalParam->appendString(STR16("MLS"));
+            parameters.addParameter(signalParam);
+
+            parameters.addParameter(new RangeParameter(STR16("Duration"),
+                DevicesForge::PluginParamIDs::SIGNAL_DURATION,
+                STR16("s"),
+                DevicesForge::SIGNAL_DURATION_MIN,
+                DevicesForge::SIGNAL_DURATION_MAX,
+                DevicesForge::SIGNAL_DURATION_DEFAULT));
+
+            parameters.addParameter(STR16("Generate"), nullptr, 1, 0.0,
+                ParameterInfo::kCanAutomate, DevicesForge::PluginParamIDs::GENERATE);
+
+            return kResultOk;
+        }
+
+        tresult PLUGIN_API DevicesForgeController::terminate() 
+        {
+            return EditController::terminate();
+        }
+
+        tresult PLUGIN_API DevicesForgeController::setComponentState(IBStream* state) 
+        {
+            if (!state) 
+                return kResultFalse;
+
+            IBStreamer streamer(state, kLittleEndian);
+            float savedMix = 1.0f;
+            float savedGain = 0.0f;
+            float savedSignalType = 0.0f;
+            float savedDuration = DevicesForge::signalDurationNormalizedDefault();
+
+            streamer.readFloat(savedMix);
+            streamer.readFloat(savedGain);
+            streamer.readFloat(savedSignalType);
+            streamer.readFloat(savedDuration);
+
+            setParamNormalized(DevicesForge::PluginParamIDs::MIX, savedMix);
+            setParamNormalized(DevicesForge::PluginParamIDs::OUTPUT_GAIN, savedGain);
+            setParamNormalized(DevicesForge::PluginParamIDs::SIGNAL_TYPE, savedSignalType);
+            setParamNormalized(DevicesForge::PluginParamIDs::SIGNAL_DURATION, savedDuration);
+            setParamNormalized(DevicesForge::PluginParamIDs::GENERATE, 0.0);
+
+            return kResultOk;
+        }
+    } //  Vst
+} //  Steinberg

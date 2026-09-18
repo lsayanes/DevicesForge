@@ -148,6 +148,7 @@ Captura Multi-Nivel:
 - [ ] PluginProcessor funcional
 - [ ] PluginEditor básico
 - [ ] Parámetros VST3
+- [x] Múltiples señales de excitación (Sweep / Dirac / Pink / MLS)
 
 ### Fase 3: DSP Engine (Semanas 4-6)
 - [ ] FFTProcessor con pffft

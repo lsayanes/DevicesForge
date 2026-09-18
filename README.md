@@ -40,9 +40,10 @@ El repositorio compila un VST3 válido (pasa el **validator** del VST3 SDK). Par
 
 | Área | Estado |
 |------|--------|
-| VST3 processor / controller, parámetros (Mix, Gain, IR, AI) | Parcial — **Gain** afecta el audio; el resto se lee pero no procesa |
+| VST3 processor / controller, parámetros (Mix, Gain, IR, AI, Signal, Duration, Generate) | **Gain** y **Generate** afectan el audio; Mix/IR/AI se leen pero no procesan |
 | `FFTProcessor`, `IRManager`, `DynamicConvolver` | Implementados; tests unitarios; convolver **no** llamado desde `process()` |
-| Captura / generator / UI | Diseño en docs; **pendiente** |
+| `SignalGenerator` | Sweep log, Dirac, pink noise, MLS; cableado a `process()` |
+| Captura / UI | Diseño en docs; **pendiente** |
 | `ONNXInference` | Enlazado si hay ONNX Runtime; **sin** carga de modelo en runtime |
 | Editor gráfico (VSTGUI) | **No** |
 
@@ -193,6 +194,9 @@ Genera `test_output.wav` con un seno de prueba (útil para humo, no sustituye el
 | 1003 | Gain | −12 … +12 dB (**activo** en `process()`) |
 | 1001 | IR | Selección de IR 0–3 (multi-nivel) |
 | 1004 | AI | Denoise IA (on/off) |
+| 1005 | Signal | Sweep / Dirac / Pink / MLS (**activo** con Generate) |
+| 1006 | Duration | 0.5–5.0 s (Dirac ignora este valor) |
+| 1007 | Generate | On/off; flanco Off→On dispara un one-shot de la señal |
 
 Constantes en [`src/plugin/DevicesForge.h`](src/plugin/DevicesForge.h).
 

@@ -205,14 +205,14 @@ Input Chain:
 ## 10. Roadmap
 
 ### Fase 1: MVP (Semanas 1-4)
-- [ ] Setup proyecto VST3 + CMake
-- [ ] Generator: Sine sweep básico
-- [ ] Capture: Record a WAV
-- [ ] Process: Deconvolución FFT simple
-- [ ] UI: Botones básicos
+- [x] Setup proyecto VST3 + CMake
+- [x] Generator: Sine sweep básico
+- [x] Capture: Record a WAV
+- [x] Process: Deconvolución FFT simple
+- [x] UI: Botones básicos
 
 ### Fase 2: Core (Semanas 5-8)
-- [ ] Múltiples señales de excitación
+- [x] Múltiples señales de excitación
 - [ ] Ring buffer con pre-trigger
 - [ ] Windowing y normalización
 - [ ] Export multi-formato

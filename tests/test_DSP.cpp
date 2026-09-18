@@ -1,10 +1,13 @@
 #include <gtest/gtest.h>
 #include <cmath>
+#include <complex>
+#include <memory>
 #include <vector>
 
 #include "dsp/FFTProcessor.h"
 #include "dsp/IRManager.h"
 #include "dsp/DynamicConvolver.h"
+#include "dsp/SignalGenerator.h"
 
 using namespace DevicesForge;
 
@@ -149,6 +152,144 @@ TEST_F(DynamicConvolverTest, LoadIR) {
     
     // Loading from generated IR should work (2 levels total)
     EXPECT_EQ(convolver->getIRManager().getNumLevels(), 2);
+}
+
+// ============================================================================
+// SignalGenerator Tests
+// ============================================================================
+
+class SignalGeneratorTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        gen = std::make_unique<SignalGenerator>();
+        gen->prepare(48000.0);
+    }
+
+    static int countZeroCrossings(const float* x, int n) {
+        int count = 0;
+        for (int i = 1; i < n; ++i) {
+            if ((x[i - 1] < 0.0f && x[i] >= 0.0f) || (x[i - 1] >= 0.0f && x[i] < 0.0f)) {
+                ++count;
+            }
+        }
+        return count;
+    }
+
+    std::unique_ptr<SignalGenerator> gen;
+};
+
+TEST_F(SignalGeneratorTest, SweepDurationMatchesSampleCount) {
+    gen->setType(SignalType::SineSweep);
+    gen->setDuration(1.0f);
+    gen->start();
+
+    ASSERT_EQ(gen->getReferenceLength(), 48000);
+    EXPECT_TRUE(gen->isPlaying());
+
+    std::vector<float> block(256);
+    int32_t rendered = 0;
+    while (gen->isPlaying()) {
+        gen->render(block.data(), 256);
+        rendered += 256;
+    }
+
+    EXPECT_FALSE(gen->isPlaying());
+    EXPECT_GE(rendered, 48000);
+    EXPECT_LT(rendered, 48000 + 256);
+}
+
+TEST_F(SignalGeneratorTest, SweepRisesInFrequency) {
+    gen->setType(SignalType::SineSweep);
+    gen->setDuration(1.0f);
+    gen->start();
+
+    const float* ir = gen->getReference();
+    ASSERT_NE(ir, nullptr);
+
+    const int window = 4800; // 100 ms
+    const int firstStart = 2400;
+    const int lastStart = 48000 - 2400 - window;
+    const int firstZC = countZeroCrossings(ir + firstStart, window);
+    const int lastZC = countZeroCrossings(ir + lastStart, window);
+    EXPECT_GT(lastZC, firstZC * 4);
+}
+
+TEST_F(SignalGeneratorTest, DiracIsSingleSample) {
+    gen->setType(SignalType::Dirac);
+    gen->setDuration(2.0f);
+    gen->start();
+
+    ASSERT_EQ(gen->getReferenceLength(), 1);
+    ASSERT_NE(gen->getReference(), nullptr);
+    EXPECT_FLOAT_EQ(gen->getReference()[0], 1.0f);
+
+    std::vector<float> block(64, 99.0f);
+    gen->render(block.data(), 64);
+    EXPECT_FLOAT_EQ(block[0], 1.0f);
+    for (int i = 1; i < 64; ++i) {
+        EXPECT_FLOAT_EQ(block[i], 0.0f);
+    }
+    EXPECT_FALSE(gen->isPlaying());
+}
+
+TEST_F(SignalGeneratorTest, PinkHasMoreLowEnergyThanHigh) {
+    gen->setType(SignalType::PinkNoise);
+    gen->setDuration(1.0f);
+    gen->start();
+
+    ASSERT_EQ(gen->getReferenceLength(), 48000);
+    const float* ir = gen->getReference();
+    ASSERT_NE(ir, nullptr);
+
+    FFTProcessor fft;
+    ASSERT_TRUE(fft.prepare(4096));
+    std::vector<std::complex<float>> spectrum(2049);
+    fft.forward(ir, spectrum.data(), 4096);
+
+    double lowEnergy = 0.0;
+    double highEnergy = 0.0;
+    const double binHz = 48000.0 / 4096.0;
+    for (int i = 1; i < 2049; ++i) {
+        const double mag2 = static_cast<double>(std::norm(spectrum[static_cast<size_t>(i)]));
+        const double hz = static_cast<double>(i) * binHz;
+        if (hz >= 20.0 && hz <= 500.0)
+            lowEnergy += mag2;
+        else if (hz >= 8000.0 && hz <= 16000.0)
+            highEnergy += mag2;
+    }
+
+    EXPECT_GT(lowEnergy, highEnergy);
+}
+
+TEST_F(SignalGeneratorTest, MLSIsBipolarWithPeriod) {
+    gen->setType(SignalType::MLS);
+    gen->setDuration(3.0f);
+    gen->start();
+
+    const int32_t length = gen->getReferenceLength();
+    ASSERT_GT(length, MLS_PERIOD * 2);
+    const float* ir = gen->getReference();
+    ASSERT_NE(ir, nullptr);
+
+    for (int32_t i = 0; i < length; ++i) {
+        EXPECT_TRUE(ir[i] == 1.0f || ir[i] == -1.0f);
+    }
+
+    int matches = 0;
+    for (int32_t i = 0; i < MLS_PERIOD; ++i) {
+        if (ir[i] == ir[i + MLS_PERIOD])
+            ++matches;
+    }
+    EXPECT_EQ(matches, MLS_PERIOD);
+}
+
+TEST_F(SignalGeneratorTest, IdleRenderIsSilence) {
+    std::vector<float> block(32, 1.0f);
+    gen->render(block.data(), 32);
+    for (float s : block) {
+        EXPECT_FLOAT_EQ(s, 0.0f);
+    }
+    EXPECT_FALSE(gen->isPlaying());
 }
 
 // ============================================================================

@@ -7,12 +7,14 @@ set(DSP_SOURCES
     dsp/FFTProcessor.cpp
     dsp/IRManager.cpp
     dsp/DynamicConvolver.cpp
+    dsp/SignalGenerator.cpp
 )
 
 set(DSP_HEADERS
     dsp/FFTProcessor.h
     dsp/IRManager.h
     dsp/DynamicConvolver.h
+    dsp/SignalGenerator.h
     plugin/DevicesForge.h
 )
 
