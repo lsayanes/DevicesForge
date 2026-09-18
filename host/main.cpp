@@ -65,13 +65,121 @@ bool writeWav(const char* filename, const std::vector<float>& data, int32 numCha
     return true;
 }
 
+// ============================================================================
+// Loopback self-test: Generate ON, feed output back to input (perfect loop).
+// Validates capture + deconvolution + export without any DAW routing.
+// ============================================================================
+static int runLoopbackTest(IAudioProcessor* audioProc, double sampleRate, int32 blockSize) {
+    fprintf(stderr, "\n=== LOOPBACK TEST (out -> in, software) ===\n");
+
+    const int32 totalSamples = (int32)(sampleRate * 3.0); // 3 s: sweep 1s + pre/post + margen
+
+    std::vector<float> loopL(blockSize, 0.f), loopR(blockSize, 0.f);
+    std::vector<float> outL(blockSize, 0.f), outR(blockSize, 0.f);
+
+    // Generate ON at block 0 (edge Off->On)
+    ParameterChanges genOn;
+    {
+        int32 qi;
+        if (auto* q = genOn.addParameterData(DevicesForge::PluginParamIDs::GENERATE, qi)) {
+            int32 pi; q->addPoint(0, 1.0, pi);
+        }
+    }
+
+    float inputPeakSeen = 0.f;
+
+    for (int32 i = 0; i < totalSamples; i += blockSize) {
+        const int32 n = std::min(blockSize, totalSamples - i);
+
+        std::vector<float*> inPtrs = { loopL.data(), loopR.data() };
+        std::vector<float*> outPtrs = { outL.data(), outR.data() };
+
+        AudioBusBuffers inBus{};
+        inBus.numChannels = 2;
+        inBus.channelBuffers32 = inPtrs.data();
+
+        AudioBusBuffers outBus{};
+        outBus.numChannels = 2;
+        outBus.channelBuffers32 = outPtrs.data();
+
+        ProcessData data{};
+        data.numInputs = 1;
+        data.numOutputs = 1;
+        data.inputs = &inBus;
+        data.outputs = &outBus;
+        data.numSamples = n;
+        if (i == 0) data.inputParameterChanges = &genOn;
+
+        if (audioProc->process(data) != kResultOk) {
+            fprintf(stderr, "process() failed at sample %d\n", i);
+            return 1;
+        }
+
+        // Feedback: this block's output is next block's input (1-block latency loop)
+        std::memcpy(loopL.data(), outL.data(), (size_t)n * sizeof(float));
+        std::memcpy(loopR.data(), outR.data(), (size_t)n * sizeof(float));
+
+        for (int32 s = 0; s < n; ++s)
+            inputPeakSeen = std::max(inputPeakSeen, std::abs(loopL[s]));
+    }
+
+    fprintf(stderr, "Loop input peak seen by host: %.4f\n", inputPeakSeen);
+
+    const char* home = std::getenv("HOME");
+    const std::string dir = std::string(home ? home : "") + "/Documents/DevicesForge/exports/latest";
+
+    auto fileSize = [](const std::string& p) -> long {
+        std::ifstream f(p, std::ios::binary | std::ios::ate);
+        return f ? (long)f.tellg() : -1;
+    };
+
+    const std::string files[] = { "/capture_raw.float.wav", "/IR.wav", "/IR.float.wav",
+                                  "/IR.aiff", "/IR.dfir", "/capture_log.txt" };
+    bool irOk = true;
+    fprintf(stderr, "\nExported files in %s:\n", dir.c_str());
+    for (const auto& f : files) {
+        const long sz = fileSize(dir + f);
+        fprintf(stderr, "  %-24s %s (%ld bytes)\n", f.c_str() + 1,
+                sz > 0 ? "OK" : "MISSING", sz);
+        if (sz <= 0 && f != "/capture_log.txt")
+            irOk = false;
+    }
+
+    std::ifstream log(dir + "/capture_log.txt");
+    if (log) {
+        fprintf(stderr, "\ncapture_log.txt:\n");
+        std::string line;
+        while (std::getline(log, line))
+            fprintf(stderr, "  %s\n", line.c_str());
+    }
+
+    if (inputPeakSeen < 0.01f) {
+        fprintf(stderr, "\nFAIL: la salida del plugin no llego al loop (Generate no sono).\n");
+        return 1;
+    }
+    if (!irOk) {
+        fprintf(stderr, "\nFAIL: faltan archivos IR (pipeline no completo).\n");
+        return 1;
+    }
+
+    fprintf(stderr, "\nLOOPBACK TEST: OK — captura + deconvolucion + export funcionan.\n");
+    fprintf(stderr, "Si en Cubase capture_raw sigue en silencio, el problema es el routing\n");
+    fprintf(stderr, "(la pista del plugin no recibe la entrada fisica; activar Monitor).\n");
+    return 0;
+}
+
 int main(int argc, char* argv[]) {
     fprintf(stderr, "=== DevicesForge - Test Host ===\n\n");
 
+    bool loopbackMode = false;
     std::string pluginPath;
-    if (argc > 1) {
-        pluginPath = argv[1];
-    } else {
+    for (int a = 1; a < argc; ++a) {
+        if (std::strcmp(argv[a], "--loopback") == 0)
+            loopbackMode = true;
+        else
+            pluginPath = argv[a];
+    }
+    if (pluginPath.empty()) {
         const char* home = std::getenv("HOME");
         pluginPath = std::string(home ? home : "") +
                      "/Library/Audio/Plug-Ins/VST3/DevicesForge.vst3";
@@ -155,6 +263,14 @@ int main(int argc, char* argv[]) {
 
     audioProc->setProcessing(true);
     fprintf(stderr, "Processing started.\n");
+
+    if (loopbackMode) {
+        const int rc = runLoopbackTest(audioProc, sampleRate, blockSize);
+        audioProc->setProcessing(false);
+        component->setActive(false);
+        audioProc->release();
+        return rc;
+    }
 
     // Generate input audio
     std::vector<float> inputL(totalSamples), inputR(totalSamples, 0.f);

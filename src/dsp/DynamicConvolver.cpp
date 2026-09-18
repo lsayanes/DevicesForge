@@ -31,9 +31,6 @@ namespace DevicesForge
         inputSpectrum.resize(numBins);
         outputSpectrum.resize(numBins);
         overlapBuffer.resize(fftSize, 0.0f);
-
-        // Generate test IR for development
-        irManager.generateTestIR(fftSize);
     }
 
     void DynamicConvolver::reset() 

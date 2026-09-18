@@ -442,4 +442,29 @@ namespace DevicesForge
 		return writeWavFloat32(filePath, samples, numSamples, sr);
 	}
 
+	std::string IRExporter::sessionDirectory(const std::string& directoryBaseName)
+	{
+		return defaultExportDirectory() + "/" + directoryBaseName;
+	}
+
+	void IRExporter::removeExportedIRFiles(const std::string& directoryBaseName)
+	{
+		const std::string dir = sessionDirectory(directoryBaseName);
+		const IRExportFormat formats[] = {IRExportFormat::WavPcm24, IRExportFormat::WavFloat32,
+										  IRExportFormat::AiffPcm24_96k, IRExportFormat::BinaryDFIR};
+		for (IRExportFormat format : formats)
+			std::remove((dir + "/IR" + formatExtension(format)).c_str());
+	}
+
+	bool IRExporter::writeTextFile(const std::string& filePath, const std::string& contents)
+	{
+		if (!ensureParentDir(filePath))
+			return false;
+		std::ofstream file(filePath);
+		if (!file)
+			return false;
+		file << contents;
+		return file.good();
+	}
+
 } // namespace DevicesForge

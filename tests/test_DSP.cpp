@@ -154,9 +154,7 @@ TEST_F(DynamicConvolverTest, SetMix) {
 TEST_F(DynamicConvolverTest, LoadIR) {
     // Generate a test IR (prepare already generated one, so we'll have 2)
     convolver->getIRManager().generateTestIR(1024);
-    
-    // Loading from generated IR should work (2 levels total)
-    EXPECT_EQ(convolver->getIRManager().getNumLevels(), 2);
+    EXPECT_EQ(convolver->getIRManager().getNumLevels(), 1);
 }
 
 // ============================================================================
@@ -385,6 +383,14 @@ TEST(IRPostProcessorTest, HanningAttenuatesEnds) {
     EXPECT_GT(ir[50], 0.9f);
 }
 
+TEST(IRPostProcessorTest, TailFadeKeepsAttack) {
+    std::vector<float> ir(100, 1.0f);
+    IRPostProcessor::applyTailFade(ir.data(), static_cast<int32_t>(ir.size()), 0.25f);
+    EXPECT_FLOAT_EQ(ir.front(), 1.0f);
+    EXPECT_NEAR(ir.back(), 0.0f, 1e-5f);
+    EXPECT_FLOAT_EQ(ir[50], 1.0f);
+}
+
 TEST(IRPostProcessorTest, NormalizePeakToTarget) {
     std::vector<float> ir = { 0.2f, -0.4f, 0.1f };
     const float peakBefore = IRPostProcessor::normalizePeak(ir.data(), static_cast<int32_t>(ir.size()), 1.0f);
@@ -401,7 +407,8 @@ TEST(IRPostProcessorTest, ProcessAppliesWindowAndNorm) {
     for (float s : ir)
         peak = std::max(peak, std::abs(s));
     EXPECT_NEAR(peak, 1.0f, 1e-5f);
-    EXPECT_NEAR(ir.front(), 0.0f, 1e-5f);
+    EXPECT_FLOAT_EQ(ir.front(), 1.0f);
+    EXPECT_NEAR(ir.back(), 0.0f, 1e-5f);
 }
 
 // ============================================================================

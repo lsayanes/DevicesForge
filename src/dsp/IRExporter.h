@@ -69,6 +69,9 @@ namespace DevicesForge
 											double sampleRate);
 
 		static std::string formatExtension(IRExportFormat format);
+		static std::string sessionDirectory(const std::string& directoryBaseName);
+		static void removeExportedIRFiles(const std::string& directoryBaseName);
+		static bool writeTextFile(const std::string& filePath, const std::string& contents);
 
 	private:
 		static bool writeWavFloat32(const std::string& path,

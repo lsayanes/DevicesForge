@@ -21,17 +21,21 @@ La referencia del sweep es la misma señal que emitió `SignalGenerator` (`getRe
 
 La IR cruda suele ser **más larga** de lo útil: al final hay ruido, reverberación de sala o artefactos numéricos. Si cortás la IR de golpe, la convolución introduce **clicks** o **pre-eco**.
 
-Se multiplica la IR en el **tiempo** por una curva que suele ser **1 al inicio** y **0 al final** (fade-out en la cola).
+Se multiplica la IR en el **tiempo** por una curva que es **1 al inicio** (no se toca el ataque / el impulso) y **0 al final** (fade-out en la cola).
 
-### Hanning (por defecto)
+**Importante:** una ventana Hanning *completa* pone `w[0] = 0` y **borra el impulso** de un loopback. El plugin **no** usa eso sobre la IR exportada.
 
-Ventana clásica, suave:
+### Fade de cola (por defecto en `process()`)
+
+Último `IR_TAIL_FADE_FRACTION` (25 %) de samples: medio-Hanning de 1 → 0. El comienzo de la IR queda intacto (`applyTailFade`).
+
+### Hanning completo (`applyHanning`)
+
+Ventana clásica, suave, **simétrica** (también anula el primer sample). Queda disponible para otros usos, no es el default del pipeline de captura:
 
 \[
 w[n] = 0.5 \left(1 - \cos\left(\frac{2\pi n}{N-1}\right)\right), \quad n = 0 \ldots N-1
 \]
-
-En el código se aplica **sobre toda la longitud** de la IR (`IRPostProcessor::applyHanning`).
 
 ### Kaiser
 
@@ -61,7 +65,8 @@ Al pasar la captura a estado **Complete** (`RingCaptureBuffer::isComplete()`), e
 
 1. Toma `getCapturedMono()` y la referencia del generador.
 2. Ejecuta `SweepDeconvolver::deconvolve`.
-3. Aplica Hanning + peak norm vía `IRPostProcessor::process`.
+3. Aplica fade de cola + peak norm vía `IRPostProcessor::process`.
+4. Si el pico de `capture_raw` es menor que `CAPTURE_MIN_PEAK`, **no** genera IR (evita ruido normalizado de un buffer vacío).
 4. Guarda la IR en `DynamicConvolver` → `IRManager` (nivel 0).
 
 Tras procesar, la IR se exporta automáticamente (ver [`EXPORT-FORMATS.md`](EXPORT-FORMATS.md)).

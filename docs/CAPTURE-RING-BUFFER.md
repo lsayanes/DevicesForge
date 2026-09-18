@@ -81,6 +81,22 @@ No hay parámetro VST **Capture** en esta fase; Generate dispara excitación y c
 3. Tras ~1.25 s la captura interna debe estar **Complete** (100 ms pre + 1 s + 250 ms tail).
 4. Generate Off y volver a On: reemplaza la captura anterior.
 
+### ⚠️ Excepción de Cubase: Monitor obligatorio
+
+Verificado en **Cubase AI Elements 13** (aplica a toda la línea Cubase):
+
+- El plugin **no** se inserta en el bus **Stereo In** (los buses de entrada no aceptan monitor ni rec). Va en una **pista de audio** con Input = Stereo In.
+- Cubase **solo pasa la entrada en vivo por los inserts si la pista tiene Monitor activado** (ícono de parlante). Sin Monitor, el insert solo ve los clips de la pista (vacía = silencio), aunque el VU del canal muestre señal.
+- **Record Enable no influye**: activarlo o no, no cambia lo que recibe el insert. Lo único determinante es **Monitor ON**.
+- Si el hardware usa **Direct Monitoring** (Studio Setup → Audio System), desactivarlo: manda la entrada a la escucha sin pasar por los inserts.
+- Con Monitor ON, cable de loop puesto y el sweep terminado, el passthrough puede generar **acople físico** (entrada → salida → cable → entrada). Mantener Gain ≤ −12 dB o apagar Monitor tras la toma.
+
+Diagnóstico rápido: con Monitor ON, **InPeak** debe moverse con cualquier señal en la entrada, sin pulsar Generate. Si no se mueve, el routing sigue mal.
+
+### Autotest sin DAW
+
+`DevicesForgeHost --loopback <ruta .vst3>` simula un loop perfecto (salida → entrada por software), dispara Generate y verifica que se exporten `capture_raw` e `IR.*`. Sirve para descartar el plugin cuando se sospecha del routing del DAW.
+
 ## Fuera de alcance (Fase 2.2)
 
 - Botón Capture manual y pre/post editables desde UI.

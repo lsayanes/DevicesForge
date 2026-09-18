@@ -26,16 +26,36 @@ namespace DevicesForge
 		if (!data || length <= 0)
 			return;
 		if (length == 1)
-		{
-			data[0] = 0.0f;
 			return;
-		}
 
 		for (int32_t n = 0; n < length; ++n)
 		{
 			const double w = 0.5 * (1.0 - std::cos(2.0 * kPi * static_cast<double>(n) /
 												  static_cast<double>(length - 1)));
 			data[static_cast<size_t>(n)] *= static_cast<float>(w);
+		}
+	}
+
+	void IRPostProcessor::applyTailFade(float* data, int32_t length, float tailFraction)
+	{
+		if (!data || length <= 1)
+			return;
+
+		tailFraction = std::clamp(tailFraction, 0.0f, 1.0f);
+		int32_t fadeSamples = static_cast<int32_t>(std::lround(static_cast<double>(length) * tailFraction));
+		if (fadeSamples < 1)
+			return;
+		if (fadeSamples >= length)
+			fadeSamples = length - 1;
+
+		const int32_t fadeStart = length - fadeSamples;
+		for (int32_t i = 0; i < fadeSamples; ++i)
+		{
+			const double t = (fadeSamples == 1)
+								 ? 1.0
+								 : static_cast<double>(i) / static_cast<double>(fadeSamples - 1);
+			const double w = 0.5 * (1.0 + std::cos(kPi * t));
+			data[static_cast<size_t>(fadeStart + i)] *= static_cast<float>(w);
 		}
 	}
 
@@ -91,10 +111,11 @@ namespace DevicesForge
 			{
 				case IRWindowType::Kaiser:
 					applyKaiser(data, length, settings.kaiserBeta);
+					applyTailFade(data, length, IR_TAIL_FADE_FRACTION);
 					break;
 				case IRWindowType::Hanning:
 				default:
-					applyHanning(data, length);
+					applyTailFade(data, length, IR_TAIL_FADE_FRACTION);
 					break;
 			}
 		}

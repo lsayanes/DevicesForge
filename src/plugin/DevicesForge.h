@@ -56,6 +56,8 @@ namespace DevicesForge
 
 	constexpr float IR_NORMALIZE_PEAK_TARGET = 1.0f;
 	constexpr float IR_KAISER_BETA_DEFAULT = 5.0f;
+	constexpr float IR_TAIL_FADE_FRACTION = 0.25f;
+	constexpr float CAPTURE_MIN_PEAK = 1.0e-4f;
 
 	inline float signalDurationNormalizedDefault()
 	{
@@ -89,6 +91,7 @@ namespace DevicesForge
 		constexpr uint32_t GENERATE = 1007;
 		constexpr uint32_t EXPORT_FORMAT = 1008;
 		constexpr uint32_t EXPORT = 1009;
+		constexpr uint32_t INPUT_PEAK = 1010;
 	}
 
 	struct IRMetadata 

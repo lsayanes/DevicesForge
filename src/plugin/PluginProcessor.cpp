@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <sstream>
 #include <vector>
 
 namespace Steinberg 
@@ -168,16 +169,23 @@ namespace Steinberg
             {
                 void** in = getChannelBuffersPointer(processSetup, data.inputs[0]);
                 const int32 inChannels = data.inputs[0].numChannels;
-                const bool inputSilent =
-                    data.inputs[0].silenceFlags == getChannelMask(data.inputs[0].numChannels);
-
                 const float* channelPtrs[16] = {};
-                if (!inputSilent) 
-                {
-                    for (int32 c = 0; c < inChannels && c < 16; ++c)
-                        channelPtrs[c] = static_cast<float*>(in[c]);
-                }
+                for (int32 c = 0; c < inChannels && c < 16; ++c)
+                    channelPtrs[c] = static_cast<float*>(in[c]);
                 captureBuffer.push(channelPtrs, inChannels, data.numSamples);
+            }
+
+            if (IParameterChanges* outParams = data.outputParameterChanges)
+            {
+                int32 queueIndex = 0;
+                if (IParamValueQueue* queue =
+                        outParams->addParameterData(DevicesForge::PluginParamIDs::INPUT_PEAK, queueIndex))
+                {
+                    int32 pointIndex = 0;
+                    const ParamValue peak =
+                        std::min(1.0, static_cast<double>(captureBuffer.getInputPeak()));
+                    queue->addPoint(0, peak, pointIndex);
+                }
             }
 
             const bool captureComplete = captureBuffer.isComplete();
@@ -280,6 +288,41 @@ namespace Steinberg
             if (!recorded || recordedLength <= 0 || !reference || referenceLength <= 0)
                 return;
 
+            const double sampleRate = captureBuffer.getMetadata().sampleRate > 0.0
+                                          ? captureBuffer.getMetadata().sampleRate
+                                          : DevicesForge::SAMPLE_RATE_DEFAULT;
+            const std::string sessionDir = "latest";
+            const std::string capturePath = DevicesForge::IRExporter::defaultExportDirectory() + "/" +
+                                            sessionDir + "/capture_raw.float.wav";
+            DevicesForge::IRExporter::exportCaptureRawWavFloat(capturePath, recorded, recordedLength,
+                                                                 sampleRate);
+
+            float capturePeak = 0.0f;
+            for (int32_t i = 0; i < recordedLength; ++i)
+                capturePeak = std::max(capturePeak, std::abs(recorded[i]));
+
+            const float lengthMs =
+                (sampleRate > 0.0) ? static_cast<float>(recordedLength) * 1000.0f / static_cast<float>(sampleRate)
+                                   : 0.0f;
+
+            std::ostringstream log;
+            log << "capture_samples=" << recordedLength << "\n"
+                << "capture_ms=" << lengthMs << "\n"
+                << "sample_rate=" << sampleRate << "\n"
+                << "peak=" << capturePeak << "\n"
+                << "min_peak=" << DevicesForge::CAPTURE_MIN_PEAK << "\n";
+
+            if (capturePeak < DevicesForge::CAPTURE_MIN_PEAK)
+            {
+                DevicesForge::IRExporter::removeExportedIRFiles(sessionDir);
+                log << "ir_exported=0\n"
+                    << "reason=capture_too_quiet_plugin_input_is_silence\n"
+                    << "note=Duration is pre+post (100ms + max(1s, duration+0.25s)), not the Generate duration alone.\n";
+                DevicesForge::IRExporter::writeTextFile(
+                    DevicesForge::IRExporter::sessionDirectory(sessionDir) + "/capture_log.txt", log.str());
+                return;
+            }
+
             std::vector<float> ir;
             if (!DevicesForge::SweepDeconvolver::deconvolve(recorded, recordedLength, reference,
                                                             referenceLength, ir, DevicesForge::FFT_SIZE))
@@ -295,15 +338,12 @@ namespace Steinberg
             convolver.getIRManager().clear();
             convolver.getIRManager().setLevelIR(0, ir, 0.0f);
 
-            const double sampleRate = captureBuffer.getMetadata().sampleRate;
-            const std::string sessionDir = "latest";
             DevicesForge::IRExporter::exportAllFormats(sessionDir, ir.data(),
                                                        static_cast<int32_t>(ir.size()), sampleRate);
-
-            const std::string capturePath = DevicesForge::IRExporter::defaultExportDirectory() + "/" +
-                                            sessionDir + "/capture_raw.float.wav";
-            DevicesForge::IRExporter::exportCaptureRawWavFloat(capturePath, recorded, recordedLength,
-                                                                 sampleRate);
+            log << "ir_exported=1\n"
+                << "ir_samples=" << ir.size() << "\n";
+            DevicesForge::IRExporter::writeTextFile(
+                DevicesForge::IRExporter::sessionDirectory(sessionDir) + "/capture_log.txt", log.str());
         }
 
         void DevicesForgeProcessor::exportCurrentIR(bool allFormats)
@@ -382,6 +422,9 @@ namespace Steinberg
 
             parameters.addParameter(STR16("Export"), nullptr, 1, 0.0,
                 ParameterInfo::kCanAutomate, DevicesForge::PluginParamIDs::EXPORT);
+
+            parameters.addParameter(STR16("InPeak"), nullptr, 0, 0.0,
+                ParameterInfo::kIsReadOnly, DevicesForge::PluginParamIDs::INPUT_PEAK);
 
             return kResultOk;
         }

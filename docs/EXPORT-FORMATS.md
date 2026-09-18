@@ -18,6 +18,14 @@ Tras una captura completa con retorno cableado, DevicesForge escribe archivos en
 | `IR.dfir` | Binario interno (`DFIR` + float32) | Plugin / herramientas DevicesForge |
 | `capture_raw.float.wav` | Grabación mono pre/post (float) | Depuración del loop |
 
+Si `capture_raw` está en **silencio**, el plugin **borra** los `IR.*` viejos y escribe `capture_log.txt` (pico, duración real, motivo). El VU de Cubase en el canal **no** implica que el insert reciba audio: en Cubase la pista necesita **Monitor ON** para que la entrada en vivo pase por los inserts (ver [`CAPTURE-RING-BUFFER.md`](CAPTURE-RING-BUFFER.md) § Excepción de Cubase).
+
+Duración de `capture_raw`: **no** es el valor de Duration. Es pre 100 ms + post `max(1 s, Duration + 0.25 s)` → con Duration 1 s ≈ **1.35 s**.
+
+Parámetro de solo lectura **InPeak**: si durante Generate queda en 0, el plugin no está viendo el loop.
+
+`IR.aiff` está a **96 kHz**. En un proyecto a 48 kHz, si Cubase no remuestrea, se oye al **doble de duración** y la mitad de frecuencia.
+
 ## Export manual (Cubase)
 
 Parámetros VST:

@@ -28,6 +28,7 @@ namespace DevicesForge
 	public:
 		static void applyHanning(float* data, int32_t length);
 		static void applyKaiser(float* data, int32_t length, float beta);
+		static void applyTailFade(float* data, int32_t length, float tailFraction);
 
 		static float normalizePeak(float* data, int32_t length, float targetPeak);
 
