@@ -8,6 +8,7 @@
 #include "dsp/IRManager.h"
 #include "dsp/DynamicConvolver.h"
 #include "dsp/SignalGenerator.h"
+#include "dsp/RingCaptureBuffer.h"
 
 using namespace DevicesForge;
 
@@ -290,6 +291,82 @@ TEST_F(SignalGeneratorTest, IdleRenderIsSilence) {
         EXPECT_FLOAT_EQ(s, 0.0f);
     }
     EXPECT_FALSE(gen->isPlaying());
+}
+
+// ============================================================================
+// RingCaptureBuffer Tests
+// ============================================================================
+
+class RingCaptureBufferTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        capture = std::make_unique<RingCaptureBuffer>();
+        capture->prepare(48000.0, 2);
+    }
+
+    void pushConstant(int32_t numSamples, float value) {
+        std::vector<float> left(static_cast<size_t>(numSamples), value);
+        std::vector<float> right = left;
+        const float* ptrs[2] = { left.data(), right.data() };
+        capture->push(ptrs, 2, numSamples);
+    }
+
+    std::unique_ptr<RingCaptureBuffer> capture;
+};
+
+TEST_F(RingCaptureBufferTest, PreTriggerContent) {
+    pushConstant(200, 1.0f);
+
+    DevicesForge::CaptureMetadata meta {};
+    ASSERT_TRUE(capture->trigger(50, 100, meta));
+
+    pushConstant(100, 2.0f);
+
+    ASSERT_TRUE(capture->isComplete());
+    ASSERT_EQ(capture->getCapturedLength(), 150);
+    const float* mono = capture->getCapturedMono();
+    ASSERT_NE(mono, nullptr);
+    for (int32_t i = 0; i < 50; ++i) {
+        EXPECT_FLOAT_EQ(mono[i], 1.0f);
+    }
+    for (int32_t i = 50; i < 150; ++i) {
+        EXPECT_FLOAT_EQ(mono[i], 2.0f);
+    }
+}
+
+TEST_F(RingCaptureBufferTest, PostLengthAndComplete) {
+    DevicesForge::CaptureMetadata meta {};
+    ASSERT_TRUE(capture->trigger(5, 10, meta));
+    EXPECT_FALSE(capture->isComplete());
+
+    pushConstant(10, 0.25f);
+    EXPECT_TRUE(capture->isComplete());
+    EXPECT_EQ(capture->getCapturedLength(), 15);
+}
+
+TEST_F(RingCaptureBufferTest, ResetClearsCapture) {
+    DevicesForge::CaptureMetadata meta {};
+    capture->trigger(0, 4, meta);
+    pushConstant(4, 1.0f);
+    ASSERT_TRUE(capture->isComplete());
+
+    capture->reset();
+    EXPECT_EQ(capture->getState(), CaptureState::Monitoring);
+    EXPECT_EQ(capture->getCapturedLength(), 0);
+    EXPECT_EQ(capture->getCapturedMono(), nullptr);
+}
+
+TEST_F(RingCaptureBufferTest, StereoToMonoAverage) {
+    std::vector<float> left = { 1.0f };
+    std::vector<float> right = { -1.0f };
+    const float* ptrs[2] = { left.data(), right.data() };
+
+    DevicesForge::CaptureMetadata meta {};
+    capture->trigger(0, 1, meta);
+    capture->push(ptrs, 2, 1);
+
+    ASSERT_TRUE(capture->isComplete());
+    ASSERT_FLOAT_EQ(capture->getCapturedMono()[0], 0.0f);
 }
 
 // ============================================================================

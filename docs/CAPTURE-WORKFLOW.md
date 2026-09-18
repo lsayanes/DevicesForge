@@ -37,16 +37,16 @@ Interface:
 - Pan: **Center**
 - Mute/Solo: **Normal**
 
-### Paso 2: Generar sweep
-1. Presionar **[GENERATE]** en el plugin
-2. Seleccionar "Sine Sweep"
-3. Duración: **1.0 segundo**
-4. El DAW reproducirá el sweep **a través del dispositivo**
+### Paso 2: Generar sweep (y captura automática)
+1. Seleccionar **Signal** = Sine Sweep y **Duration** = **1.0 s**
+2. Cablear el retorno: salida del plugin → dispositivo → entrada del plugin (vía interface)
+3. Activar **Generate** (Off → On). El plugin:
+   - reproduce el sweep hacia el dispositivo;
+   - dispara la captura con **100 ms de pre-trigger** y post = duración + cola (ver [`CAPTURE-RING-BUFFER.md`](CAPTURE-RING-BUFFER.md)).
+4. Para repetir, poner Generate en Off y volver a On.
 
-### Paso 3: Capturar
-1. Presionar **[CAPTURE]** durante la reproducción
-2. El plugin grabará la respuesta
-3. Verificar forma de onda en el display
+### Paso 3: Capturar (UI futura)
+En la versión actual **no** hace falta un botón **[CAPTURE]** aparte: la ventana pre/post se arma sola al activar Generate. Un control Capture manual y visualización de forma de onda llegarán con el editor gráfico (Fase 4).
 
 ### Paso 4: Verificar
 - Respuesta en frecuencia debe ser plana (±0.5 dB)

@@ -8,6 +8,7 @@
 #include "../dsp/DynamicConvolver.h"
 #include "../dsp/IRManager.h"
 #include "../dsp/SignalGenerator.h"
+#include "../dsp/RingCaptureBuffer.h"
 
 #ifdef HAS_ONNX_RUNTIME
 #include "../ai/ONNXInference.h"
@@ -38,6 +39,7 @@ namespace Steinberg
             DevicesForge::DynamicConvolver convolver;
             DevicesForge::IRManager irManager;
             DevicesForge::SignalGenerator generator;
+            DevicesForge::RingCaptureBuffer captureBuffer;
             
             #ifdef HAS_ONNX_RUNTIME
             DevicesForge::ONNXInference aiEngine;

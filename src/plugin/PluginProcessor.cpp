@@ -7,8 +7,9 @@
 #include "base/source/fstreamer.h"
 
 #include <algorithm>
-#include <cstring>
 #include <cmath>
+#include <cstring>
+#include <vector>
 
 namespace Steinberg 
 {
@@ -53,12 +54,14 @@ namespace Steinberg
             {
                 convolver.prepare(processSetup.sampleRate, DevicesForge::FFT_SIZE);
                 generator.prepare(processSetup.sampleRate);
+                captureBuffer.prepare(processSetup.sampleRate, DevicesForge::NUM_CHANNELS);
                 prevGenerateOn = paramGenerate >= 0.5f;
             } 
             else 
             {
                 convolver.reset();
                 generator.reset();
+                captureBuffer.reset();
             }
             
             return AudioEffect::setActive(state);
@@ -114,22 +117,55 @@ namespace Steinberg
             }
 
             const bool generateOn = paramGenerate >= 0.5f;
-            
+            const auto signalType = DevicesForge::normalizedToSignalType(paramSignalType);
+            const float signalDuration = DevicesForge::normalizedToDuration(paramSignalDuration);
+
             if (generateOn && !prevGenerateOn) 
             {
-                generator.setType(DevicesForge::normalizedToSignalType(paramSignalType));
-                generator.setDuration(DevicesForge::normalizedToDuration(paramSignalDuration));
+                generator.setType(signalType);
+                generator.setDuration(signalDuration);
+
+                const double sr = processSetup.sampleRate > 0.0 ? processSetup.sampleRate
+                                                                : DevicesForge::SAMPLE_RATE_DEFAULT;
+                const int32_t preSamples =
+                    DevicesForge::secondsToSamples(sr, DevicesForge::CAPTURE_PRE_SEC);
+                const float postSec = DevicesForge::capturePostDurationSeconds(signalType, signalDuration);
+                const int32_t postSamples = DevicesForge::secondsToSamples(sr, postSec);
+
+                DevicesForge::CaptureMetadata meta {};
+                meta.sampleRate = sr;
+                meta.signalType = signalType;
+                meta.signalDurationSec = signalDuration;
+                captureBuffer.trigger(preSamples, postSamples, meta);
+
                 generator.start();
             }
-            
+
             prevGenerateOn = generateOn;
+
+            const float gainLinear = outputGainLinear(paramOutputGain);
+
+            if (data.numInputs > 0) 
+            {
+                void** in = getChannelBuffersPointer(processSetup, data.inputs[0]);
+                const int32 inChannels = data.inputs[0].numChannels;
+                const bool inputSilent =
+                    data.inputs[0].silenceFlags == getChannelMask(data.inputs[0].numChannels);
+
+                const float* channelPtrs[16] = {};
+                if (!inputSilent) 
+                {
+                    for (int32 c = 0; c < inChannels && c < 16; ++c)
+                        channelPtrs[c] = static_cast<float*>(in[c]);
+                }
+                captureBuffer.push(channelPtrs, inChannels, data.numSamples);
+            }
 
             if (data.numOutputs == 0) 
                 return kResultOk;
 
             void** out = getChannelBuffersPointer(processSetup, data.outputs[0]);
             const int32 numOutChannels = data.outputs[0].numChannels;
-            const float gainLinear = outputGainLinear(paramOutputGain);
 
             if (generator.isPlaying()) 
             {
@@ -137,7 +173,7 @@ namespace Steinberg
                 generator.render(dest, data.numSamples);
                 for (int32 i = 0; i < data.numSamples; ++i) 
                     dest[i] *= gainLinear;
-                
+
                 for (int32 channel = 1; channel < numOutChannels; ++channel) 
                     std::memcpy(out[channel], dest, static_cast<size_t>(data.numSamples) * sizeof(float));
 

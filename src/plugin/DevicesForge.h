@@ -43,6 +43,11 @@ namespace DevicesForge
 	constexpr int32_t MLS_REGISTER_BITS = 16;
 	constexpr int32_t MLS_PERIOD = (1 << MLS_REGISTER_BITS) - 1;
 
+	constexpr float CAPTURE_PRE_SEC = 0.100f;
+	constexpr float CAPTURE_POST_TAIL_SEC = 0.250f;
+	constexpr float CAPTURE_MONITOR_SEC =
+		CAPTURE_PRE_SEC + SIGNAL_DURATION_MAX + CAPTURE_POST_TAIL_SEC + 0.5f;
+
 	inline float signalDurationNormalizedDefault()
 	{
 		return (SIGNAL_DURATION_DEFAULT - SIGNAL_DURATION_MIN) /

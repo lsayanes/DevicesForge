@@ -8,6 +8,7 @@ set(DSP_SOURCES
     dsp/IRManager.cpp
     dsp/DynamicConvolver.cpp
     dsp/SignalGenerator.cpp
+    dsp/RingCaptureBuffer.cpp
 )
 
 set(DSP_HEADERS
@@ -15,6 +16,7 @@ set(DSP_HEADERS
     dsp/IRManager.h
     dsp/DynamicConvolver.h
     dsp/SignalGenerator.h
+    dsp/RingCaptureBuffer.h
     plugin/DevicesForge.h
 )
 

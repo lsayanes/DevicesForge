@@ -15,6 +15,7 @@ Documentación detallada en [`docs/`](docs/):
 - [`docs/SPEC.md`](docs/SPEC.md) — arquitectura, módulos y roadmap
 - [`docs/DEPENDENCIES.md`](docs/DEPENDENCIES.md) — herramientas y librerías
 - [`docs/CAPTURE-WORKFLOW.md`](docs/CAPTURE-WORKFLOW.md) — flujo de captura en estudio (diseño)
+- [`docs/CAPTURE-RING-BUFFER.md`](docs/CAPTURE-RING-BUFFER.md) — ring buffer, pre/post-trigger y disparo con Generate
 
 ---
 
@@ -43,11 +44,12 @@ El repositorio compila un VST3 válido (pasa el **validator** del VST3 SDK). Par
 | VST3 processor / controller, parámetros (Mix, Gain, IR, AI, Signal, Duration, Generate) | **Gain** y **Generate** afectan el audio; Mix/IR/AI se leen pero no procesan |
 | `FFTProcessor`, `IRManager`, `DynamicConvolver` | Implementados; tests unitarios; convolver **no** llamado desde `process()` |
 | `SignalGenerator` | Sweep log, Dirac, pink noise, MLS; cableado a `process()` |
-| Captura / UI | Diseño en docs; **pendiente** |
+| `RingCaptureBuffer` | Ring estéreo + captura mono; **disparo automático** al activar Generate |
+| UI / export captura | Editor y WAV pendientes; ver [`docs/CAPTURE-RING-BUFFER.md`](docs/CAPTURE-RING-BUFFER.md) |
 | `ONNXInference` | Enlazado si hay ONNX Runtime; **sin** carga de modelo en runtime |
 | Editor gráfico (VSTGUI) | **No** |
 
-Para probar hoy: cargar el plugin en un DAW (p. ej. Cubase) y usar el parámetro **Gain** (−12 … +12 dB). Ver sección [Probar en el DAW](#probar-en-el-daw).
+Para probar hoy: cargar el plugin en un DAW (p. ej. Cubase), **Generate** con retorno cableado (captura automática) y **Gain**. Ver [Probar en el DAW](#probar-en-el-daw) y [`docs/CAPTURE-RING-BUFFER.md`](docs/CAPTURE-RING-BUFFER.md).
 
 ---
 
