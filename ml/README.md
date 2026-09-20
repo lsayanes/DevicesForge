@@ -37,6 +37,3 @@ ml/
   models/                 # .onnx + evaluate_report.txt
 ```
 
-## Estado
-
-Scripts **3.1** listos. Integración en el plugin C++: pendiente (plan en `.cursor/plans/fase_3_ai_denoise.plan.md`).

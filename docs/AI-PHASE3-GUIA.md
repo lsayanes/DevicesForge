@@ -1,3 +1,6 @@
+## Aviso:
+### Esta parte del proyecto fue desarrollada completamente con IA, use Composer 2.5 Fast en su mayoria y algo de Cursor Grok 4.6 desde Cursor. Este documento es parte de una discusion acerca del por que usar Python, lenguaje que me resulta incomprensible y "automagico" en lugar de C++, por esta razon tanto este documento como [`AI-PHASE3.md`](AI-PHASE3.md) (escritos por estos modelos) tienen ese tono explicativo 
+
 # Guía Fase 3 IA — sin ser experto en Python
 
 Esta guía es la **entrada amigable**. Los detalles técnicos están en [`AI-PHASE3.md`](AI-PHASE3.md).
