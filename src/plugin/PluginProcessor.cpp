@@ -102,10 +102,12 @@ namespace Steinberg
                                 if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue) 
                                     paramIRSelect = static_cast<float>(value);
                                 break;
+#if defined(HAS_ONNX_RUNTIME)
                             case DevicesForge::PluginParamIDs::AI_DENOISE:
                                 if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue) 
                                     paramAIDenoise = static_cast<float>(value);
                                 break;
+#endif
                             case DevicesForge::PluginParamIDs::SIGNAL_TYPE:
                                 if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue) 
                                     paramSignalType = static_cast<float>(value);
@@ -391,8 +393,10 @@ namespace Steinberg
             parameters.addParameter(STR16("IR"), nullptr, 3, 0.0,
                 ParameterInfo::kCanAutomate | ParameterInfo::kIsList, DevicesForge::PluginParamIDs::IR_SELECT);
 
+#if defined(HAS_ONNX_RUNTIME)
             parameters.addParameter(STR16("AI"), nullptr, 1, 0.0,
                 ParameterInfo::kCanAutomate, DevicesForge::PluginParamIDs::AI_DENOISE);
+#endif
 
             auto* signalParam = new StringListParameter(STR16("Signal"),
                 DevicesForge::PluginParamIDs::SIGNAL_TYPE);

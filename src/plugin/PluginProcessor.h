@@ -48,7 +48,9 @@ namespace Steinberg
             float paramMix = 1.0f;
             float paramOutputGain = 0.0f;
             float paramIRSelect = 0.0f;
+#if defined(HAS_ONNX_RUNTIME)
             float paramAIDenoise = 0.0f;
+#endif
             float paramSignalType = 0.0f;
             float paramSignalDuration = DevicesForge::signalDurationNormalizedDefault();
             float paramGenerate = 0.0f;
