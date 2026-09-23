@@ -456,6 +456,14 @@ namespace DevicesForge
 			std::remove((dir + "/IR" + formatExtension(format)).c_str());
 	}
 
+	void IRExporter::clearSessionDirectory(const std::string& directoryBaseName)
+	{
+		removeExportedIRFiles(directoryBaseName);
+		const std::string dir = sessionDirectory(directoryBaseName);
+		std::remove((dir + "/capture_raw.float.wav").c_str());
+		std::remove((dir + "/capture_log.txt").c_str());
+	}
+
 	bool IRExporter::writeTextFile(const std::string& filePath, const std::string& contents)
 	{
 		if (!ensureParentDir(filePath))

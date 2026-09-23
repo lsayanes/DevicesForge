@@ -48,6 +48,7 @@ namespace DevicesForge
 		levels[levelIndex].metadata.length = numSamples;
 		levels[levelIndex].metadata.name = filePath;
 
+		++revision;
 		return true;
 	}
 
@@ -164,6 +165,7 @@ namespace DevicesForge
 	void IRManager::clear() 
 	{
 		levels.clear();
+		++revision;
 	}
 
 	void IRManager::setLevelIR(int32_t levelIndex, const std::vector<float>& data, float levelDB)
@@ -179,6 +181,7 @@ namespace DevicesForge
 		levels[levelIndex].metadata.length = static_cast<int32_t>(data.size());
 		levels[levelIndex].metadata.levelDB = levelDB;
 		levels[levelIndex].metadata.name = "Captured IR";
+		++revision;
 	}
 
 	void IRManager::generateTestIR(int32_t length, float freq) 
@@ -197,6 +200,7 @@ namespace DevicesForge
 		level.metadata.length = length;
 		level.metadata.name = "Test IR";
 		levels.push_back(level);
+		++revision;
 	}
 
 	int32_t IRManager::findNearestLevel(float levelDB) const 

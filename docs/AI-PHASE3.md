@@ -1,6 +1,6 @@
 # Fase 3 — Denoise IA local (STFT + overlap)
 
-> **Primera lectura:** si el detalle técnico abruma, empezá por [`AI-PHASE3-GUIA.md`](AI-PHASE3-GUIA.md) (4 scripts lineales en `ml/scripts/`).
+> **Estado del roadmap:** esto es **Fase 5 (opcional)**, no el trabajo inmediato. Prioridad actual: **Fase 3** — emulación con convolución y pruebas en estudio. Primera lectura amigable: [`AI-PHASE3-GUIA.md`](AI-PHASE3-GUIA.md).
 
 Plan de implementación para **limpiar IRs capturadas** con una red neuronal desplegada vía **ONNX Runtime**, sin API cloud en esta fase.
 

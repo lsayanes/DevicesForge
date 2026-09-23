@@ -8,7 +8,7 @@ Software VST3 plugin que captura la "huella digital" (Impulse Response) de **dis
 
 - Capturar curva de EQ y respuesta de fase del dispositivo bajo medición (p. ej. canal de consola, preamp)
 - Generar IRs de alta precisión (24-bit / 48kHz)
-- Usar IA para optimización y generación de IRs
+- (Opcional, fase posterior) Refinar IRs con IA local si las capturas lo justifican — ver Fase 5
 - Plugin VST3 multiplataforma (macOS / Windows)
 
 ## 3. Arquitectura del Sistema
@@ -204,30 +204,45 @@ Input Chain:
 
 ## 10. Roadmap
 
-### Fase 1: MVP (Semanas 1-4)
+**Prioridad actual:** validar el concepto en estudio (captura → IR → **escuchar la emulación**) antes de invertir en IA. El laboratorio `ml/` y [`docs/AI-PHASE3.md`](docs/AI-PHASE3.md) quedan **congelados** hasta decidir si hace falta denoise.
+
+### Fase 1: MVP (Semanas 1-4) — hecho
 - [x] Setup proyecto VST3 + CMake
 - [x] Generator: Sine sweep básico
 - [x] Capture: Record a WAV
 - [x] Process: Deconvolución FFT simple
 - [x] UI: Botones básicos
 
-### Fase 2: Core (Semanas 5-8)
+### Fase 2: Captura y procesado (Semanas 5-8) — hecho
 - [x] Múltiples señales de excitación
 - [x] Ring buffer con pre-trigger
 - [x] Windowing y normalización
 - [x] Export multi-formato
+- [x] Verificación Cubase (Monitor, `capture_log`, host `--loopback`)
 
-### Fase 3: AI (Semanas 9-12)
-- [ ] Entrenar modelo de denoising (STFT U-Net → ONNX); ver [`docs/AI-PHASE3.md`](docs/AI-PHASE3.md)
-- [ ] Integrar ONNX Runtime en post-captura (STFT + overlap-add, param **AI**)
-- [ ] ~~API cloud fallback~~ — pospuesto hasta IA local estable
-- [ ] Denoise de IR (MVP); extrapolación / style transfer fuera de alcance inicial
+### Fase 3: Emulación y validación del concepto (siguiente)
+Objetivo: **usar la IR capturada dentro del plugin** y comparar con el dispositivo real. Ver [`docs/DYNAMIC-CONVOLUTION-MIX.md`](docs/DYNAMIC-CONVOLUTION-MIX.md).
 
-### Fase 4: Polish (Semanas 13-16)
-- [ ] UI profesional
-- [ ] Presets por tipo de dispositivo
-- [ ] Automatización
-- [ ] Testing completo
+- [x] **DynamicConvolver en `process()`** — audio de la pista a través de la última IR en memoria (cuando no suena Generate); convolución particionada overlap-save, estéreo, FFT de IR cacheada
+- [x] Parámetros **Mix** e **IR Select** cableados al convolver
+- [ ] Flujo de prueba documentado: captura → escucha en insert → A/B con bypass del hardware
+- [ ] Criterios de éxito medibles (nivel, timbre, fase perceptible, repetibilidad entre tomas)
+- [ ] (Opcional) Captura **multi-nivel** (−24 / −12 / 0 / +6 dB) + interpolación en `DynamicConvolver`
+- [ ] Carga de IR desde disco (`LOAD IR` / `.dfir` o WAV) para reutilizar capturas sin re-generar
+
+### Fase 4: Producto y polish
+- [ ] Editor gráfico (VSTGUI): Generate, medidores, preview de IR
+- [ ] Presets por tipo de dispositivo (consola, preamp, cadena insert)
+- [ ] Automatización de parámetros clave
+- [ ] QA: validator, tests de regresión, checklist de hosts (Cubase AI+)
+
+### Fase 5: IA opcional (solo si las pruebas lo piden)
+La IR ya se obtiene en Fase 2; la IA sería **limpieza opcional** de IR ruidosas.
+
+- [ ] Decisión go/no-go tras experiencia en Fase 3
+- [ ] Integrar ONNX post-captura (STFT + overlap); param **AI** hoy sin efecto — ver [`docs/AI-PHASE3.md`](docs/AI-PHASE3.md)
+- [ ] Entrenar / afinar modelo (`ml/`) si hace falta
+- [ ] ~~API cloud~~ — fuera de alcance hasta tener local estable
 
 ## 11. Referencias
 

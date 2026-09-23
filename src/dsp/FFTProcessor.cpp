@@ -29,8 +29,10 @@ namespace DevicesForge
 
 		// Allocate work area (aligned memory)
 		workArea = static_cast<float*>(pffft_aligned_malloc(fftSize * sizeof(float)));
-		
-		return workArea != nullptr;
+		scratchTime = static_cast<float*>(pffft_aligned_malloc(fftSize * sizeof(float)));
+		scratchFreq = static_cast<float*>(pffft_aligned_malloc(fftSize * sizeof(float)));
+
+		return workArea != nullptr && scratchTime != nullptr && scratchFreq != nullptr;
 	}
 
 	void FFTProcessor::reset() 
@@ -46,7 +48,19 @@ namespace DevicesForge
 			pffft_aligned_free(workArea);
 			workArea = nullptr;
 		}
-		
+
+		if (scratchTime)
+		{
+			pffft_aligned_free(scratchTime);
+			scratchTime = nullptr;
+		}
+
+		if (scratchFreq)
+		{
+			pffft_aligned_free(scratchFreq);
+			scratchFreq = nullptr;
+		}
+
 		fftSize = 0;
 	}
 
@@ -103,6 +117,46 @@ namespace DevicesForge
 	{
 		for (int32_t i = 0; i < numBins; i++) 
 			result[i] = a[i] * b[i];
+	}
+
+	void FFTProcessor::forwardRaw(const float* timeIn, int32_t numSamples, float* freqOut)
+	{
+		if (!setup || !workArea || !scratchTime || !scratchFreq)
+			return;
+
+		const int32_t n = (numSamples < fftSize) ? numSamples : fftSize;
+		std::memset(scratchTime, 0, fftSize * sizeof(float));
+		std::memcpy(scratchTime, timeIn, n * sizeof(float));
+
+		pffft_transform(static_cast<PFFFT_Setup*>(setup), scratchTime, scratchFreq,
+						workArea, PFFFT_FORWARD);
+
+		std::memcpy(freqOut, scratchFreq, fftSize * sizeof(float));
+	}
+
+	void FFTProcessor::inverseRaw(const float* freqIn, float* timeOut)
+	{
+		if (!setup || !workArea || !scratchTime || !scratchFreq)
+			return;
+
+		std::memcpy(scratchFreq, freqIn, fftSize * sizeof(float));
+
+		pffft_transform(static_cast<PFFFT_Setup*>(setup), scratchFreq, scratchTime,
+						workArea, PFFFT_BACKWARD);
+
+		const float scale = 1.0f / static_cast<float>(fftSize);
+		for (int32_t i = 0; i < fftSize; ++i)
+			timeOut[i] = scratchTime[i] * scale;
+	}
+
+	void FFTProcessor::convolveAccumulate(const float* specA, const float* specB,
+										float* accum) const
+	{
+		if (!setup)
+			return;
+
+		pffft_zconvolve_accumulate(static_cast<PFFFT_Setup*>(setup), specA, specB,
+								accum, 1.0f);
 	}
 
 } //DevicesForge

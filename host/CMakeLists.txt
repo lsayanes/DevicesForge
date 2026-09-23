@@ -6,6 +6,7 @@ set(HOST_SOURCES
     main.cpp
     ${VST3SDK_SOURCE_DIR}/public.sdk/source/vst/hosting/plugprovider.cpp
     ${VST3SDK_SOURCE_DIR}/public.sdk/source/vst/hosting/plugprovider.h
+    ${VST3SDK_SOURCE_DIR}/public.sdk/source/common/memorystream.cpp
 )
 
 if(APPLE)

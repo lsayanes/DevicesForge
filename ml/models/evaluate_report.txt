@@ -1,0 +1,3 @@
+snr_before_db=20.4751
+snr_after_db=-3.3400
+snr_delta_db=-23.8152

@@ -40,6 +40,10 @@ namespace DevicesForge
 
 		void setLevelIR(int32_t levelIndex, const std::vector<float>& data, float levelDB = 0.0f);
 
+		/** Incrementa con cada cambio de IR (load/set/clear/test).
+		    DynamicConvolver lo usa para invalidar la FFT cacheada. */
+		uint64_t getRevision() const { return revision; }
+
 	private:
 		struct IRLevel 
 		{
@@ -50,9 +54,9 @@ namespace DevicesForge
 
 		std::vector<IRLevel> levels;
 		mutable std::vector<float> interpolatedBuffer;
+		uint64_t revision { 0 };
 
 		int32_t findNearestLevel(float levelDB) const;
-		void interpolateIRs(int32_t indexA, int32_t indexB, float t);
 	};
 
 } // DevicesForge

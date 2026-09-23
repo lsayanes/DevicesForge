@@ -93,6 +93,8 @@ Verificado en **Cubase AI Elements 13** (aplica a toda la línea Cubase):
 
 Diagnóstico rápido: con Monitor ON, **InPeak** debe moverse con cualquier señal en la entrada, sin pulsar Generate. Si no se mueve, el routing sigue mal.
 
+**Antes de Generate:** no hay “nivel de sweep” previo; usá **InPeak** + **Gain** (−6…−12 dB si el loop es fuerte) para comprobar el retorno. **Generate** se apaga solo al terminar el sweep; **ClrLatest** On limpia `exports/latest/` al inicio de cada toma (ver [`EXPORT-FORMATS.md`](EXPORT-FORMATS.md)).
+
 ### Autotest sin DAW
 
 `DevicesForgeHost --loopback <ruta .vst3>` simula un loop perfecto (salida → entrada por software), dispara Generate y verifica que se exporten `capture_raw` e `IR.*`. Sirve para descartar el plugin cuando se sospecha del routing del DAW.

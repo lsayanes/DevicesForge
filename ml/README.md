@@ -1,4 +1,4 @@
-# DevicesForge — laboratorio IA (Fase 3)
+# DevicesForge — laboratorio IA (Fase 5, opcional)
 
 **Guía para empezar (recomendada):** [`docs/AI-PHASE3-GUIA.md`](../docs/AI-PHASE3-GUIA.md)
 
@@ -36,4 +36,8 @@ ml/
   checkpoints/            # .pt del entrenamiento (gitignored)
   models/                 # .onnx + evaluate_report.txt
 ```
+
+## Estado
+
+Scripts listos para experimentar. **No es prioridad del roadmap:** primero Fase 3 (convolución en el plugin y pruebas A/B). Integración C++ cuando haya go/no-go sobre IA.
 

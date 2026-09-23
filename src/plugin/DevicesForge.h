@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <string>
 #include <vector>
 #include <cstdint>
@@ -23,6 +24,10 @@ namespace DevicesForge
 	constexpr int32_t NUM_CHANNELS = 2;
 	constexpr int32_t MAX_IR_LENGTH = 65536;
 	constexpr int32_t FFT_SIZE = 4096;
+
+	/** Convolución en tiempo real (DynamicConvolver): FFT y bloque interno.
+	    blockSize = CONV_FFT_SIZE / 2 → latencia del path convolucionado (~21 ms @48k). */
+	constexpr int32_t CONV_FFT_SIZE = 2048;
 
 	constexpr int32_t NUM_CAPTURE_LEVELS = 4;
 	constexpr float CAPTURE_LEVELS[NUM_CAPTURE_LEVELS] = {
@@ -54,10 +59,37 @@ namespace DevicesForge
 	constexpr float CAPTURE_MONITOR_SEC =
 		CAPTURE_PRE_SEC + SIGNAL_DURATION_MAX + CAPTURE_POST_TAIL_SEC + 0.5f;
 
+	/** Deconvolución: regularización de Tikhonov relativa al pico de |Ref|².
+	    Fuera de la banda del sweep el espectro de referencia es ~0; sin esto,
+	    dividir por él amplifica ruido ultrasónico hasta dominar toda la IR. */
+	constexpr float DECONV_REGULARIZATION = 1.0e-3f;
+
 	constexpr float IR_NORMALIZE_PEAK_TARGET = 1.0f;
+
+	/** Tope de seguridad al restaurar una IR desde el estado del proyecto:
+	    evita reservar memoria absurda si el stream viene corrupto. */
+	constexpr int32_t IR_STATE_MAX_SAMPLES = 48000 * 10;
 	constexpr float IR_KAISER_BETA_DEFAULT = 5.0f;
 	constexpr float IR_TAIL_FADE_FRACTION = 0.25f;
 	constexpr float CAPTURE_MIN_PEAK = 1.0e-4f;
+
+	/** Medidor InPeak: escala en dBFS y decaimiento del peak-hold (por bloque). */
+	constexpr float METER_FLOOR_DB = -60.0f;
+	constexpr float METER_DECAY_PER_BLOCK = 0.85f;
+
+	/** Umbrales de calidad para el veredicto en capture_log.txt. */
+	constexpr float CAPTURE_CLIP_THRESHOLD = 0.99f;
+	constexpr float CAPTURE_GOOD_PEAK_MIN = 0.05f;   // ~ -26 dBFS
+	constexpr float CAPTURE_GOOD_SNR_DB = 20.0f;
+
+	/** Convierte amplitud lineal a dBFS con piso en METER_FLOOR_DB. */
+	inline float linearToDbfs(float linear)
+	{
+		if (linear <= 0.0f)
+			return METER_FLOOR_DB;
+		const float db = 20.0f * std::log10(linear);
+		return (db < METER_FLOOR_DB) ? METER_FLOOR_DB : db;
+	}
 
 	inline float signalDurationNormalizedDefault()
 	{
@@ -92,7 +124,16 @@ namespace DevicesForge
 		constexpr uint32_t EXPORT_FORMAT = 1008;
 		constexpr uint32_t EXPORT = 1009;
 		constexpr uint32_t INPUT_PEAK = 1010;
+		/** Si está On, al disparar Generate se borra exports/latest antes de escribir. */
+		constexpr uint32_t CLEAR_LATEST = 1011;
+		/** Solo lectura: texto de version en el panel del host (units = FULL_VERSION_STR). */
+		constexpr uint32_t VERSION_LABEL = 1012;
+		/** Solo lectura: largo en ms de la IR cargada (0 = sin IR → passthrough). */
+		constexpr uint32_t IR_LENGTH_MS = 1013;
 	}
+
+	/** Tope del indicador IRLen (ms). */
+	constexpr float IR_LENGTH_METER_MAX_MS = 2000.0f;
 
 	struct IRMetadata 
 	{

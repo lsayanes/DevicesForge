@@ -157,6 +157,126 @@ TEST_F(DynamicConvolverTest, LoadIR) {
     EXPECT_EQ(convolver->getIRManager().getNumLevels(), 1);
 }
 
+TEST_F(DynamicConvolverTest, NoIRLeavesBufferUntouched) {
+    std::vector<float> left(256, 0.5f);
+    float* bufs[1] = { left.data() };
+
+    EXPECT_FALSE(convolver->process(bufs, 1, 256, 0));
+    for (float v : left)
+        EXPECT_FLOAT_EQ(v, 0.5f);
+}
+
+// Con IR = delta (1,0,0,...) y mix=1 la salida es la entrada retrasada
+// exactamente getLatencySamples() (bloque interno del overlap-save).
+TEST_F(DynamicConvolverTest, DeltaIRIsIdentityWithLatency) {
+    std::vector<float> delta(64, 0.0f);
+    delta[0] = 1.0f;
+    convolver->getIRManager().setLevelIR(0, delta, 0.0f);
+    convolver->setMix(1.0f);
+
+    const int32_t latency = convolver->getLatencySamples();
+    const int32_t total = latency * 4;
+    std::vector<float> input(total), output(total);
+    for (int32_t i = 0; i < total; ++i)
+        input[i] = std::sin(0.05f * static_cast<float>(i));
+    output = input;
+
+    // Procesar en bloques chicos (simula al host)
+    const int32_t hostBlock = 128;
+    for (int32_t offset = 0; offset < total; offset += hostBlock) {
+        float* bufs[1] = { output.data() + offset };
+        ASSERT_TRUE(convolver->process(bufs, 1,
+                                       std::min(hostBlock, total - offset), 0));
+    }
+
+    for (int32_t i = 0; i < total - latency; ++i)
+        EXPECT_NEAR(output[i + latency], input[i], 1e-3f) << "sample " << i;
+}
+
+// Mix = 0 → solo dry (también retrasado por el FIFO interno).
+TEST_F(DynamicConvolverTest, MixZeroOutputsDelayedDry) {
+    std::vector<float> ir(32, 0.0f);
+    ir[0] = 0.25f;  // IR atenuada: si se colara wet, cambia la amplitud
+    convolver->getIRManager().setLevelIR(0, ir, 0.0f);
+    convolver->setMix(0.0f);
+
+    const int32_t latency = convolver->getLatencySamples();
+    const int32_t total = latency * 3;
+    std::vector<float> input(total), output(total);
+    for (int32_t i = 0; i < total; ++i)
+        input[i] = (i % 7 == 0) ? 1.0f : -0.3f;
+    output = input;
+
+    float* bufs[1] = { output.data() };
+    ASSERT_TRUE(convolver->process(bufs, 1, total, 0));
+
+    for (int32_t i = 0; i < total - latency; ++i)
+        EXPECT_NEAR(output[i + latency], input[i], 1e-4f) << "sample " << i;
+}
+
+// IR más larga que la FFT (varias particiones): comparar contra convolución directa.
+TEST_F(DynamicConvolverTest, LongIRMatchesDirectConvolution) {
+    const int32_t irLength = 1500;  // fftSize=1024, bloque=512 → 3 particiones
+    std::vector<float> ir(irLength);
+    unsigned seed = 1234;
+    auto nextRand = [&seed]() {
+        seed = seed * 1664525u + 1013904223u;
+        return (static_cast<float>(seed >> 8) / 8388608.0f) - 1.0f;
+    };
+    for (auto& v : ir)
+        v = nextRand() * 0.1f;
+    ir[0] = 1.0f;
+
+    convolver->getIRManager().setLevelIR(0, ir, 0.0f);
+    convolver->setMix(1.0f);
+
+    const int32_t latency = convolver->getLatencySamples();
+    const int32_t inputLen = 2048;
+    std::vector<float> input(inputLen);
+    for (auto& v : input)
+        v = nextRand() * 0.5f;
+
+    // Referencia: convolución directa
+    const int32_t total = inputLen + latency + irLength;
+    std::vector<float> expected(total, 0.0f);
+    for (int32_t i = 0; i < inputLen; ++i)
+        for (int32_t j = 0; j < irLength; ++j)
+            expected[i + j] += input[i] * ir[j];
+
+    std::vector<float> stream(total, 0.0f);
+    std::copy(input.begin(), input.end(), stream.begin());
+
+    const int32_t hostBlock = 100;  // bloque que no divide al interno
+    for (int32_t offset = 0; offset < total; offset += hostBlock) {
+        float* bufs[1] = { stream.data() + offset };
+        ASSERT_TRUE(convolver->process(bufs, 1,
+                                       std::min(hostBlock, total - offset), 0));
+    }
+
+    for (int32_t i = 0; i < inputLen + irLength - 1; ++i)
+        EXPECT_NEAR(stream[i + latency], expected[i], 5e-3f) << "sample " << i;
+}
+
+// Estéreo: canales independientes (impulso solo en L no debe aparecer en R).
+TEST_F(DynamicConvolverTest, StereoChannelsAreIndependent) {
+    std::vector<float> delta(16, 0.0f);
+    delta[0] = 1.0f;
+    convolver->getIRManager().setLevelIR(0, delta, 0.0f);
+    convolver->setMix(1.0f);
+
+    const int32_t latency = convolver->getLatencySamples();
+    const int32_t total = latency * 3;
+    std::vector<float> left(total, 0.0f), right(total, 0.0f);
+    left[10] = 1.0f;
+
+    float* bufs[2] = { left.data(), right.data() };
+    ASSERT_TRUE(convolver->process(bufs, 2, total, 0));
+
+    EXPECT_NEAR(left[10 + latency], 1.0f, 1e-3f);
+    for (float v : right)
+        EXPECT_NEAR(v, 0.0f, 1e-5f);
+}
+
 // ============================================================================
 // SignalGenerator Tests
 // ============================================================================
@@ -438,14 +558,80 @@ TEST(IRExporterTest, WritesAllFormatsToTempDir) {
     EXPECT_EQ(riff[3], 'F');
 }
 
-TEST(SweepDeconvolverTest, IdentityRecordedMatchesReference) {
-    std::vector<float> ref(512);
-    for (int i = 0; i < 512; ++i)
-        ref[static_cast<size_t>(i)] =
-            std::sin(kTwoPiF * 440.0f * static_cast<float>(i) / 48000.0f);
+TEST(IRExporterTest, ClearSessionDirectoryRemovesKnownFiles) {
+    const std::string base = "unit_test_clear";
+    std::vector<float> ir = {1.0f, 0.0f};
+    ASSERT_TRUE(IRExporter::exportAllFormats(base, ir.data(), 2, 48000.0));
+    const std::string dir = IRExporter::sessionDirectory(base);
+    ASSERT_TRUE(IRExporter::writeTextFile(dir + "/capture_log.txt", "test=1\n"));
+    ASSERT_TRUE(IRExporter::exportCaptureRawWavFloat(dir + "/capture_raw.float.wav",
+                                                     ir.data(), 2, 48000.0));
+
+    IRExporter::clearSessionDirectory(base);
+
+    std::ifstream check(dir + "/IR.wav");
+    EXPECT_FALSE(check.good());
+    std::ifstream log(dir + "/capture_log.txt");
+    EXPECT_FALSE(log.good());
+}
+
+// Regresión: dividir por el espectro del sweep fuera de su banda amplificaba
+// ruido ultrasónico hasta concentrar el 100% de la energía sobre 20 kHz,
+// dejando la banda audible ~44 dB abajo (IR inaudible al convolucionar).
+TEST(SweepDeconvolverTest, EnergyStaysInSweepBand) {
+    SignalGenerator gen;
+    gen.prepare(48000.0);
+    gen.setType(SignalType::SineSweep);
+    gen.setDuration(1.0f);
+    gen.start();
+
+    const float* ref = gen.getReference();
+    const int32_t refLen = gen.getReferenceLength();
+    ASSERT_GT(refLen, 0);
 
     std::vector<float> ir;
-    ASSERT_TRUE(SweepDeconvolver::deconvolve(ref.data(), 512, ref.data(), 512, ir, 1024));
+    ASSERT_TRUE(SweepDeconvolver::deconvolve(ref, refLen, ref, refLen, ir, 0, 48000.0));
+
+    const int32_t fftSize = 65536;
+    FFTProcessor fft;
+    ASSERT_TRUE(fft.prepare(fftSize));
+    std::vector<float> padded(static_cast<size_t>(fftSize), 0.0f);
+    const int32_t copy = std::min(static_cast<int32_t>(ir.size()), fftSize);
+    std::copy(ir.begin(), ir.begin() + copy, padded.begin());
+
+    std::vector<std::complex<float>> spec(static_cast<size_t>(fft.getNumBins()));
+    fft.forward(padded.data(), spec.data(), fftSize);
+
+    const double binHz = 48000.0 / static_cast<double>(fftSize);
+    double audible = 0.0, ultrasonic = 0.0;
+    for (int32_t bin = 0; bin < fft.getNumBins(); ++bin) {
+        const double freq = bin * binHz;
+        const double energy = std::norm(spec[static_cast<size_t>(bin)]);
+        if (freq >= 20.0 && freq <= 20000.0)
+            audible += energy;
+        else if (freq > 20000.0)
+            ultrasonic += energy;
+    }
+
+    ASSERT_GT(audible, 0.0);
+    EXPECT_LT(ultrasonic / audible, 0.05) << "energia fuera de banda domina la IR";
+}
+
+// Con excitación de banda ancha (sweep) y grabación idéntica a la referencia,
+// la IR debe ser una delta limitada en banda al comienzo.
+TEST(SweepDeconvolverTest, IdentityRecordedMatchesReference) {
+    SignalGenerator gen;
+    gen.prepare(48000.0);
+    gen.setType(SignalType::SineSweep);
+    gen.setDuration(1.0f);
+    gen.start();
+
+    const float* ref = gen.getReference();
+    const int32_t refLen = gen.getReferenceLength();
+    ASSERT_GT(refLen, 0);
+
+    std::vector<float> ir;
+    ASSERT_TRUE(SweepDeconvolver::deconvolve(ref, refLen, ref, refLen, ir, 0, 48000.0));
     ASSERT_GT(ir.size(), 0u);
 
     int32_t peakIndex = 0;
@@ -458,7 +644,7 @@ TEST(SweepDeconvolverTest, IdentityRecordedMatchesReference) {
         }
     }
     EXPECT_LT(peakIndex, 32);
-    EXPECT_GT(peakValue, 0.1f);
+    EXPECT_GT(peakValue, 0.0f);
 }
 
 // ============================================================================

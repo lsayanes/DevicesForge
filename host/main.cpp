@@ -16,6 +16,7 @@
 #include "pluginterfaces/base/ibstream.h"
 #include "pluginterfaces/base/ustring.h"
 #include "base/source/fstreamer.h"
+#include "public.sdk/source/common/memorystream.h"
 #include "base/source/fstring.h"
 
 #include "plugin/DevicesForge.h"
@@ -115,12 +116,14 @@ static int runLoopbackTest(IAudioProcessor* audioProc, double sampleRate, int32 
             return 1;
         }
 
-        // Feedback: this block's output is next block's input (1-block latency loop)
-        std::memcpy(loopL.data(), outL.data(), (size_t)n * sizeof(float));
-        std::memcpy(loopR.data(), outR.data(), (size_t)n * sizeof(float));
-
-        for (int32 s = 0; s < n; ++s)
+        // Feedback: this block's output is next block's input (1-block latency loop).
+        // Clip a ±1 como un conversor real: con la IR cargada el convolver forma un
+        // lazo realimentado que sin clipping diverge (esperable, no es un bug).
+        for (int32 s = 0; s < n; ++s) {
+            loopL[s] = std::max(-1.0f, std::min(1.0f, outL[s]));
+            loopR[s] = std::max(-1.0f, std::min(1.0f, outR[s]));
             inputPeakSeen = std::max(inputPeakSeen, std::abs(loopL[s]));
+        }
     }
 
     fprintf(stderr, "Loop input peak seen by host: %.4f\n", inputPeakSeen);
@@ -151,6 +154,91 @@ static int runLoopbackTest(IAudioProcessor* audioProc, double sampleRate, int32 
         std::string line;
         while (std::getline(log, line))
             fprintf(stderr, "  %s\n", line.c_str());
+    }
+
+    // --- Emulacion: medir ganancia del path convolucionado (Generate off) ---
+    ParameterChanges emuParams;
+    {
+        int32 qi, pi;
+        if (auto* q = emuParams.addParameterData(DevicesForge::PluginParamIDs::MIX, qi))
+            q->addPoint(0, 1.0, pi); // Mix 100% wet
+        if (auto* q = emuParams.addParameterData(DevicesForge::PluginParamIDs::OUTPUT_GAIN, qi))
+            q->addPoint(0, 0.5, pi); // Gain 0 dB
+        if (auto* q = emuParams.addParameterData(DevicesForge::PluginParamIDs::GENERATE, qi))
+            q->addPoint(0, 0.0, pi);
+    }
+
+    const int32 emuSamples = (int32)(sampleRate * 2.0);
+    double inSumSq = 0.0, outSumSq = 0.0;
+    float testPhase = 0.f;
+    int32 emuBlockIndex = 0;
+
+    for (int32 i = 0; i < emuSamples; i += blockSize) {
+        const int32 n = std::min(blockSize, emuSamples - i);
+
+        std::vector<float> testL(n), testR(n);
+        generateSine(testL.data(), n, 1000.f, (float)sampleRate, testPhase);
+        for (int32 s = 0; s < n; ++s) {
+            testL[s] *= 0.25f;
+            testR[s] = testL[s];
+            inSumSq += (double)testL[s] * testL[s];
+        }
+
+        std::vector<float*> inPtrs = { testL.data(), testR.data() };
+        std::vector<float*> outPtrs = { outL.data(), outR.data() };
+
+        AudioBusBuffers inBus{};
+        inBus.numChannels = 2;
+        inBus.channelBuffers32 = inPtrs.data();
+        AudioBusBuffers outBus{};
+        outBus.numChannels = 2;
+        outBus.channelBuffers32 = outPtrs.data();
+
+        ProcessData data{};
+        data.numInputs = 1;
+        data.numOutputs = 1;
+        data.inputs = &inBus;
+        data.outputs = &outBus;
+        data.numSamples = n;
+        if (emuBlockIndex == 0) data.inputParameterChanges = &emuParams;
+
+        audioProc->process(data);
+
+        // Saltar el primer bloque (latencia interna del convolver)
+        if (emuBlockIndex > 0)
+            for (int32 s = 0; s < n; ++s)
+                outSumSq += (double)outL[s] * outL[s];
+
+        ++emuBlockIndex;
+    }
+
+    const double inRms = std::sqrt(inSumSq / std::max(1, emuSamples));
+    const double outRms = std::sqrt(outSumSq / std::max(1, emuSamples));
+    const double gainDb = 20.0 * std::log10(std::max(outRms, 1e-12) / std::max(inRms, 1e-12));
+
+    fprintf(stderr, "\nEmulacion (Mix 100%%, Gain 0 dB, tono 1 kHz):\n");
+    fprintf(stderr, "  in RMS  : %.5f\n", inRms);
+    fprintf(stderr, "  out RMS : %.5f\n", outRms);
+    fprintf(stderr, "  ganancia: %+.1f dB\n", gainDb);
+    if (outRms < inRms * 0.05)
+        fprintf(stderr, "  AVISO: salida >26 dB por debajo de la entrada.\n");
+
+    // La IR debe viajar dentro del estado del proyecto: si solo se guardan los
+    // 4 parametros (16 bytes), al reabrir en Cubase la emulacion queda muda.
+    FUnknownPtr<IComponent> component(audioProc);
+    if (component) {
+        MemoryStream stateStream;
+        if (component->getState(&stateStream) == kResultOk) {
+            const int64 stateSize = stateStream.getSize();
+            stateStream.seek(0, IBStream::kIBSeekSet, nullptr);
+            const bool restored = component->setState(&stateStream) == kResultOk;
+            fprintf(stderr, "\nEstado del proyecto: %lld bytes, restaurado: %s\n",
+                    (long long)stateSize, restored ? "si" : "no");
+            if (stateSize < 1024 || !restored) {
+                fprintf(stderr, "\nFAIL: la IR no se persistio en el estado del proyecto.\n");
+                return 1;
+            }
+        }
     }
 
     if (inputPeakSeen < 0.01f) {

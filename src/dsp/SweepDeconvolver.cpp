@@ -65,12 +65,39 @@ namespace DevicesForge
 		return bestOffset;
 	}
 
+	float SweepDeconvolver::bandWeight(double frequencyHz, double sampleRate)
+	{
+		const double nyquist = sampleRate * 0.5;
+		const double lo = SWEEP_FREQ_START_HZ;
+		const double hi = std::min(static_cast<double>(SWEEP_FREQ_END_HZ), nyquist * 0.95);
+		const double loEdge = lo * 0.5;                    // media octava por debajo
+		const double hiEdge = std::min(hi * 1.15, nyquist);
+
+		if (frequencyHz <= loEdge || frequencyHz >= hiEdge)
+			return 0.0f;
+		if (frequencyHz >= lo && frequencyHz <= hi)
+			return 1.0f;
+
+		if (frequencyHz < lo)
+		{
+			const double t = (frequencyHz - loEdge) / (lo - loEdge);
+			return static_cast<float>(0.5 * (1.0 - std::cos(kPi * t)));
+		}
+
+		if (hiEdge <= hi)
+			return 0.0f;
+
+		const double t = (frequencyHz - hi) / (hiEdge - hi);
+		return static_cast<float>(0.5 * (1.0 + std::cos(kPi * t)));
+	}
+
 	bool SweepDeconvolver::deconvolve(const float* recorded,
 									  int32_t recordedLength,
 									  const float* reference,
 									  int32_t referenceLength,
 									  std::vector<float>& irOut,
-									  int32_t fftSizeHint)
+									  int32_t fftSizeHint,
+									  double sampleRate)
 	{
 		if (!recorded || !reference || recordedLength <= 0 || referenceLength <= 0)
 			return false;
@@ -104,12 +131,24 @@ namespace DevicesForge
 		fft.forward(recPadded.data(), recSpec.data(), fftSize);
 		fft.forward(refPadded.data(), refSpec.data(), fftSize);
 
-		constexpr float kEpsilon = 1e-8f;
+		// Regularización relativa: el epsilon se escala con la energía máxima de
+		// la referencia, de modo que los bins sin excitación quedan atenuados en
+		// vez de amplificados.
+		float maxRefNorm = 0.0f;
+		for (int32_t bin = 0; bin < numBins; ++bin)
+			maxRefNorm = std::max(maxRefNorm, std::norm(refSpec[static_cast<size_t>(bin)]));
+
+		const float epsilon = std::max(maxRefNorm * DECONV_REGULARIZATION, 1e-20f);
+		const double binHz = (sampleRate > 0.0 ? sampleRate : SAMPLE_RATE_DEFAULT) /
+							 static_cast<double>(fftSize);
+
 		for (int32_t bin = 0; bin < numBins; ++bin)
 		{
 			const std::complex<float>& den = refSpec[static_cast<size_t>(bin)];
-			const float denom = std::norm(den) + kEpsilon;
-			irSpec[static_cast<size_t>(bin)] = (recSpec[static_cast<size_t>(bin)] * std::conj(den)) / denom;
+			const float denom = std::norm(den) + epsilon;
+			const float weight = bandWeight(static_cast<double>(bin) * binHz, sampleRate);
+			irSpec[static_cast<size_t>(bin)] =
+				(recSpec[static_cast<size_t>(bin)] * std::conj(den)) * (weight / denom);
 		}
 
 		irOut.assign(static_cast<size_t>(fftSize), 0.0f);

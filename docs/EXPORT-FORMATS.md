@@ -22,7 +22,23 @@ Si `capture_raw` está en **silencio**, el plugin **borra** los `IR.*` viejos y 
 
 Duración de `capture_raw`: **no** es el valor de Duration. Es pre 100 ms + post `max(1 s, Duration + 0.25 s)` → con Duration 1 s ≈ **1.35 s**.
 
-Parámetro de solo lectura **InPeak**: si durante Generate queda en 0, el plugin no está viendo el loop.
+Parámetro de solo lectura **InPeak**: nivel de la **entrada del plugin** en **dBFS** (−60…0) con peak-hold. Con **Monitor ON** y el loop cableado, comprobalo **antes** de Generate: apuntá a picos entre **−18 y −6 dBFS**. Si queda en −60, el retorno no llega al insert (routing).
+
+`capture_log.txt` incluye un veredicto de la toma:
+
+| `quality=` | Significado |
+|------------|-------------|
+| `ok` | Nivel y ruido correctos |
+| `silence_check_routing` | La entrada del plugin está en silencio |
+| `clipping_lower_gain` | Hubo saturación: bajar Gain o la entrada de la placa |
+| `level_low_raise_gain` | Pico < −26 dBFS: subir nivel |
+| `low_snr_noisy_take` | Señal/ruido < 20 dB: bajar ruido ambiente o subir nivel |
+
+También registra `peak_dbfs`, `noise_floor_dbfs` (medido en el pre-trigger), `signal_rms_dbfs` y `snr_db`.
+
+**Generate** vuelve solo a **Off** cuando termina el sweep (el host debería reflejarlo; la captura post-trigger sigue un instante en segundo plano).
+
+**ClrLatest** (por defecto **On**): al pulsar Generate (flanco Off→On) borra `latest/` (`IR.*`, `capture_raw.float.wav`, `capture_log.txt`) antes de escribir la nueva toma. Desactivalo si querés conservar archivos viejos hasta exportarlos.
 
 `IR.aiff` está a **96 kHz**. En un proyecto a 48 kHz, si Cubase no remuestrea, se oye al **doble de duración** y la mitad de frecuencia.
 

@@ -46,7 +46,8 @@ namespace Steinberg
             #endif
 
             float paramMix = 1.0f;
-            float paramOutputGain = 0.0f;
+            // 0.5 normalizado = 0 dB. Debe coincidir con el default del controller.
+            float paramOutputGain = 0.5f;
             float paramIRSelect = 0.0f;
 #if defined(HAS_ONNX_RUNTIME)
             float paramAIDenoise = 0.0f;
@@ -55,7 +56,10 @@ namespace Steinberg
             float paramSignalDuration = DevicesForge::signalDurationNormalizedDefault();
             float paramGenerate = 0.0f;
             bool prevGenerateOn = false;
+            bool sweepActive = false;
             bool prevCaptureComplete = false;
+            float paramClearLatest = 1.0f;
+            bool notifyGenerateOff = false;
             float paramExportFormat = 0.0f;
             float paramExport = 0.0f;
             bool prevExportOn = false;
@@ -63,7 +67,7 @@ namespace Steinberg
             void processCompletedCapture();
             void exportCurrentIR(bool allFormats);
 
-            float vuMeter = 0.0f;
+            float meterPeak = 0.0f;   // peak-hold con decaimiento para InPeak
         };
 
         class DevicesForgeController : public EditController 

@@ -71,6 +71,8 @@ namespace DevicesForge
 		static std::string formatExtension(IRExportFormat format);
 		static std::string sessionDirectory(const std::string& directoryBaseName);
 		static void removeExportedIRFiles(const std::string& directoryBaseName);
+		/** Borra IR.*, capture_raw.float.wav y capture_log.txt en la sesión. */
+		static void clearSessionDirectory(const std::string& directoryBaseName);
 		static bool writeTextFile(const std::string& filePath, const std::string& contents);
 
 	private:

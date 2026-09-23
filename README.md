@@ -17,6 +17,7 @@ Documentación detallada en [`docs/`](docs/):
 - [`docs/CAPTURE-WORKFLOW.md`](docs/CAPTURE-WORKFLOW.md) — flujo de captura en estudio (diseño)
 - [`docs/CAPTURE-RING-BUFFER.md`](docs/CAPTURE-RING-BUFFER.md) — ring buffer, pre/post-trigger y disparo con Generate
 - [`docs/WINDOWING-NORMALIZATION.md`](docs/WINDOWING-NORMALIZATION.md) — ventaneo Hanning/Kaiser y normalización de pico de IR
+- [`docs/DYNAMIC-CONVOLUTION-MIX.md`](docs/DYNAMIC-CONVOLUTION-MIX.md) — DynamicConvolver, Mix dry/wet e integración prevista en `process()`
 - [`docs/EXPORT-FORMATS.md`](docs/EXPORT-FORMATS.md) — WAV / AIFF / DFIR y carpeta `exports/latest`
 - [`docs/AI-PHASE3-GUIA.md`](docs/AI-PHASE3-GUIA.md) — Fase 3 IA: guía práctica (laboratorio Python)
 - [`docs/AI-PHASE3.md`](docs/AI-PHASE3.md) — Fase 3: spec técnica STFT + ONNX; scripts en [`ml/`](ml/)
@@ -31,7 +32,7 @@ DevicesForge está pensado para:
 2. **Capturar** la respuesta del dispositivo bajo prueba (p. ej. un canal de consola) a varios niveles (−24, −12, 0, +6 dB).
 3. **Procesar** IRs (deconvolución, ventaneo, export WAV).
 4. **Reproducir** audio con **convolución dinámica** (selección e interpolación de IR según nivel de entrada).
-5. **Refinar** IRs con IA local (denoise / optimización vía ONNX).
+5. **(Opcional, más adelante)** Refinar IRs ruidosas con IA local — ver Fase 5 en el roadmap.
 
 ```
 Generator → Capture → IR multi-nivel → DynamicConvolver (+ ONNX opcional) → salida
@@ -45,8 +46,8 @@ El repositorio compila un VST3 válido (pasa el **validator** del VST3 SDK). Par
 
 | Área | Estado |
 |------|--------|
-| VST3 processor / controller, parámetros (Mix, Gain, IR, AI, Signal, Duration, Generate) | **Gain** y **Generate** afectan el audio; Mix/IR/AI se leen pero no procesan |
-| `FFTProcessor`, `IRManager`, `DynamicConvolver` | Implementados; tests unitarios; convolver **no** llamado desde `process()` |
+| VST3 processor / controller, parámetros (Mix, Gain, IR, AI, Signal, Duration, Generate) | **Gain**, **Generate**, **Mix** e **IR** afectan el audio; AI se lee pero no procesa |
+| `FFTProcessor`, `IRManager`, `DynamicConvolver` | Convolución particionada (overlap-save) **cableada en `process()`**: la pista suena a través de la IR capturada |
 | `SignalGenerator` | Sweep log, Dirac, pink noise, MLS; cableado a `process()` |
 | `RingCaptureBuffer` | Ring estéreo + captura mono; **disparo automático** al activar Generate |
 | `SweepDeconvolver` + `IRPostProcessor` | Deconvolución FFT al completar captura; Hanning + peak norm → `IRManager` |
@@ -203,9 +204,13 @@ Genera `test_output.wav` con un seno de prueba (útil para humo, no sustituye el
 | 1004 | AI | Denoise IA (on/off) |
 | 1005 | Signal | Sweep / Dirac / Pink / MLS (**activo** con Generate) |
 | 1006 | Duration | 0.5–5.0 s (Dirac ignora este valor) |
-| 1007 | Generate | On/off; flanco Off→On dispara un one-shot de la señal |
+| 1007 | Generate | Off→On dispara sweep + captura; **vuelve a Off** al terminar el sweep |
 | 1008 | ExportFmt | WAV24 / WAV32f / AIFF96 / DFIR |
 | 1009 | Export | Off→On exporta la última IR al formato elegido |
+| 1010 | InPeak | Solo lectura: pico de entrada en **dBFS** (−60…0), con peak-hold |
+| 1011 | ClrLatest | On (default): borra `exports/latest/` al iniciar cada Generate |
+| 1012 | Version | Solo lectura: build (`FULL_VERSION_STR` en `version.h`) |
+| 1013 | IRLen | Solo lectura: largo de la IR en memoria (**0 ms = sin IR**, passthrough) |
 
 Constantes en [`src/plugin/DevicesForge.h`](src/plugin/DevicesForge.h).
 
@@ -233,11 +238,16 @@ Valor genérico `"Fx"` suele listarse como *Otros*. Para ubicarlo mejor (p. ej. 
 
 ## Roadmap (resumen)
 
-Ver checklist completo en [`docs/SPEC.md`](docs/SPEC.md):
+Checklist completo en [`SPEC.md`](SPEC.md) §10.
 
-- Fase 2: captura, deconvolución, export — **hecho** (ver [`docs/SPEC.md`](docs/SPEC.md))  
-- Fase 3: denoise IA local (STFT + ONNX); ver [`docs/AI-PHASE3.md`](docs/AI-PHASE3.md)  
-- Fase 4: UI, convolver en `process()`, presets, QA  
+| Fase | Estado | Enfoque |
+|------|--------|---------|
+| 1–2 | Hecho | Captura, deconvolución, export, Cubase |
+| **3** | **Ahora** | **Convolución en el plugin**, A/B con hardware, validar el concepto |
+| 4 | Después | UI, presets, automatización, QA |
+| 5 | Opcional | IA / denoise — [`docs/AI-PHASE3.md`](docs/AI-PHASE3.md) y `ml/` congelados hasta decidir |
+
+**Hecho:** `DynamicConvolver` + **Mix** + **IR Select** cableados en `process()`. **Próximo paso:** pruebas A/B en estudio (hardware vs emulación) y documentar resultados.
 
 ---
 

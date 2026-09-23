@@ -1,4 +1,5 @@
 #include "PluginProcessor.h"
+#include "version.h"
 #include "public.sdk/source/vst/vstaudioprocessoralgo.h"
 
 #include "../dsp/IRPostProcessor.h"
@@ -57,10 +58,12 @@ namespace Steinberg
         {
             if (state) 
             {
-                convolver.prepare(processSetup.sampleRate, DevicesForge::FFT_SIZE);
+                convolver.prepare(processSetup.sampleRate, DevicesForge::CONV_FFT_SIZE);
                 generator.prepare(processSetup.sampleRate);
                 captureBuffer.prepare(processSetup.sampleRate, DevicesForge::NUM_CHANNELS);
                 prevGenerateOn = paramGenerate >= 0.5f;
+                sweepActive = false;
+                notifyGenerateOff = false;
                 prevCaptureComplete = false;
                 prevExportOn = paramExport >= 0.5f;
             } 
@@ -120,6 +123,10 @@ namespace Steinberg
                                 if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue) 
                                     paramGenerate = static_cast<float>(value);
                                 break;
+                            case DevicesForge::PluginParamIDs::CLEAR_LATEST:
+                                if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue) 
+                                    paramClearLatest = static_cast<float>(value);
+                                break;
                             case DevicesForge::PluginParamIDs::EXPORT_FORMAT:
                                 if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue) 
                                     paramExportFormat = static_cast<float>(value);
@@ -137,8 +144,14 @@ namespace Steinberg
             const auto signalType = DevicesForge::normalizedToSignalType(paramSignalType);
             const float signalDuration = DevicesForge::normalizedToDuration(paramSignalDuration);
 
+            if (!generateOn && prevGenerateOn)
+                sweepActive = false;
+
             if (generateOn && !prevGenerateOn) 
             {
+                if (paramClearLatest >= 0.5f)
+                    DevicesForge::IRExporter::clearSessionDirectory("latest");
+
                 generator.setType(signalType);
                 generator.setDuration(signalDuration);
 
@@ -156,9 +169,18 @@ namespace Steinberg
                 captureBuffer.trigger(preSamples, postSamples, meta);
 
                 generator.start();
+                sweepActive = true;
             }
 
             prevGenerateOn = generateOn;
+
+            if (sweepActive && !generator.isPlaying())
+            {
+                sweepActive = false;
+                paramGenerate = 0.0f;
+                prevGenerateOn = false;
+                notifyGenerateOff = true;
+            }
 
             const bool exportOn = paramExport >= 0.5f;
             if (exportOn && !prevExportOn)
@@ -183,10 +205,48 @@ namespace Steinberg
                 if (IParamValueQueue* queue =
                         outParams->addParameterData(DevicesForge::PluginParamIDs::INPUT_PEAK, queueIndex))
                 {
+                    // Peak-hold con decaimiento: sin esto el valor parpadea por bloque
+                    // y es imposible leerlo en el panel del host.
+                    meterPeak = std::max(captureBuffer.getInputPeak(),
+                                         meterPeak * DevicesForge::METER_DECAY_PER_BLOCK);
+
+                    const float peakDb = DevicesForge::linearToDbfs(meterPeak);
+                    const ParamValue normalized =
+                        std::clamp((peakDb - DevicesForge::METER_FLOOR_DB) /
+                                       (0.0 - DevicesForge::METER_FLOOR_DB),
+                                   0.0, 1.0);
+
                     int32 pointIndex = 0;
-                    const ParamValue peak =
-                        std::min(1.0, static_cast<double>(captureBuffer.getInputPeak()));
-                    queue->addPoint(0, peak, pointIndex);
+                    queue->addPoint(0, normalized, pointIndex);
+                }
+
+                // IRLen = 0 significa que no hay IR en memoria: el plugin solo pasa
+                // la señal. La IR no se guarda en el estado del proyecto todavía.
+                int32 queueIndexIR = 0;
+                if (IParamValueQueue* queue = outParams->addParameterData(
+                        DevicesForge::PluginParamIDs::IR_LENGTH_MS, queueIndexIR))
+                {
+                    const double sr = processSetup.sampleRate > 0.0 ? processSetup.sampleRate
+                                                                    : DevicesForge::SAMPLE_RATE_DEFAULT;
+                    const double irMs =
+                        static_cast<double>(convolver.getIRManager().getIRLength(0)) * 1000.0 / sr;
+                    const ParamValue normalized =
+                        std::clamp(irMs / DevicesForge::IR_LENGTH_METER_MAX_MS, 0.0, 1.0);
+
+                    int32 pointIndex = 0;
+                    queue->addPoint(0, normalized, pointIndex);
+                }
+
+                if (notifyGenerateOff)
+                {
+                    notifyGenerateOff = false;
+                    int32 queueIndexGen = 0;
+                    if (IParamValueQueue* queue = outParams->addParameterData(
+                            DevicesForge::PluginParamIDs::GENERATE, queueIndexGen))
+                    {
+                        int32 pointIndex = 0;
+                        queue->addPoint(0, 0.0, pointIndex);
+                    }
                 }
             }
 
@@ -219,21 +279,34 @@ namespace Steinberg
                 return kResultOk;
 
             void** in = getChannelBuffersPointer(processSetup, data.inputs[0]);
-            const int32 numChannels = std::min(data.inputs[0].numChannels, numOutChannels);
+            const int32 numChannels =
+                std::min({data.inputs[0].numChannels, numOutChannels,
+                          static_cast<int32>(DevicesForge::NUM_CHANNELS)});
 
-            if (data.inputs[0].silenceFlags == getChannelMask(data.inputs[0].numChannels)) 
-            {
-                data.outputs[0].silenceFlags = data.inputs[0].silenceFlags;
-                return kResultOk;
-            }
-
+            // Copiar entrada a salida; el convolver procesa in-place sobre la salida.
+            float* outPtrs[DevicesForge::NUM_CHANNELS] = {};
             for (int32 channel = 0; channel < numChannels; ++channel) 
             {
                 float* inputBuffer = static_cast<float*>(in[channel]);
                 float* outputBuffer = static_cast<float*>(out[channel]);
+                if (outputBuffer != inputBuffer)
+                    std::memcpy(outputBuffer, inputBuffer,
+                                static_cast<size_t>(data.numSamples) * sizeof(float));
+                outPtrs[channel] = outputBuffer;
+            }
 
+            // Emulación: convolución con la IR seleccionada (si hay IR en memoria).
+            // Sin IR el buffer queda intacto → passthrough.
+            convolver.setMix(paramMix);
+            const int32_t irIndex = static_cast<int32_t>(
+                paramIRSelect * static_cast<float>(DevicesForge::NUM_CAPTURE_LEVELS - 1) + 0.5f);
+            convolver.process(outPtrs, numChannels, data.numSamples, irIndex);
+
+            for (int32 channel = 0; channel < numChannels; ++channel) 
+            {
+                float* outputBuffer = outPtrs[channel];
                 for (int32 i = 0; i < data.numSamples; ++i) 
-                    outputBuffer[i] = inputBuffer[i] * gainLinear;
+                    outputBuffer[i] *= gainLinear;
             }
 
             data.outputs[0].silenceFlags = 0;
@@ -247,7 +320,7 @@ namespace Steinberg
 
             IBStreamer streamer(state, kLittleEndian);
             float savedMix = 1.0f;
-            float savedGain = 0.0f;
+            float savedGain = 0.5f;
             float savedSignalType = 0.0f;
             float savedDuration = DevicesForge::signalDurationNormalizedDefault();
 
@@ -263,6 +336,19 @@ namespace Steinberg
             paramGenerate = 0.0f;
             prevGenerateOn = false;
 
+            // La IR se guarda junto a los parámetros: sin esto habría que
+            // recapturar el dispositivo cada vez que se abre el proyecto.
+            // Los estados de versiones previas terminan aquí y la lectura
+            // falla sin efecto, dejando el convolver vacío.
+            int32 irLength = 0;
+            if (streamer.readInt32(irLength) && irLength > 0 &&
+                irLength <= DevicesForge::IR_STATE_MAX_SAMPLES)
+            {
+                std::vector<float> ir(static_cast<size_t>(irLength));
+                if (streamer.readFloatArray(ir.data(), irLength))
+                    convolver.getIRManager().setLevelIR(0, ir, 0.0f);
+            }
+
             return kResultOk;
         }
 
@@ -276,6 +362,16 @@ namespace Steinberg
             streamer.writeFloat(paramOutputGain);
             streamer.writeFloat(paramSignalType);
             streamer.writeFloat(paramSignalDuration);
+
+            const DevicesForge::IRManager& irManager = convolver.getIRManager();
+            const float* ir = irManager.getIR(0);
+            const int32_t irLength = irManager.getIRLength(0);
+            const bool hasIR = ir != nullptr && irLength > 0 &&
+                               irLength <= DevicesForge::IR_STATE_MAX_SAMPLES;
+
+            streamer.writeInt32(hasIR ? irLength : 0);
+            if (hasIR)
+                streamer.writeFloatArray(ir, irLength);
 
             return kResultOk;
         }
@@ -300,8 +396,33 @@ namespace Steinberg
                                                                  sampleRate);
 
             float capturePeak = 0.0f;
+            int32_t clippedSamples = 0;
             for (int32_t i = 0; i < recordedLength; ++i)
-                capturePeak = std::max(capturePeak, std::abs(recorded[i]));
+            {
+                const float magnitude = std::abs(recorded[i]);
+                capturePeak = std::max(capturePeak, magnitude);
+                if (magnitude >= DevicesForge::CAPTURE_CLIP_THRESHOLD)
+                    ++clippedSamples;
+            }
+
+            // El pre-trigger (antes del sweep) es ruido de fondo puro: sirve de
+            // referencia para estimar la relacion senal/ruido de la toma.
+            const int32_t preSamples =
+                std::min(captureBuffer.getMetadata().preSamples, recordedLength);
+            auto rmsOf = [recorded](int32_t from, int32_t to) -> float {
+                if (to <= from)
+                    return 0.0f;
+                double sum = 0.0;
+                for (int32_t i = from; i < to; ++i)
+                    sum += static_cast<double>(recorded[i]) * recorded[i];
+                return static_cast<float>(std::sqrt(sum / static_cast<double>(to - from)));
+            };
+
+            const float noiseRms = rmsOf(0, preSamples);
+            const float signalRms = rmsOf(preSamples, recordedLength);
+            const float snrDb = (noiseRms > 0.0f && signalRms > 0.0f)
+                                    ? 20.0f * std::log10(signalRms / noiseRms)
+                                    : 0.0f;
 
             const float lengthMs =
                 (sampleRate > 0.0) ? static_cast<float>(recordedLength) * 1000.0f / static_cast<float>(sampleRate)
@@ -312,7 +433,23 @@ namespace Steinberg
                 << "capture_ms=" << lengthMs << "\n"
                 << "sample_rate=" << sampleRate << "\n"
                 << "peak=" << capturePeak << "\n"
+                << "peak_dbfs=" << DevicesForge::linearToDbfs(capturePeak) << "\n"
+                << "noise_floor_dbfs=" << DevicesForge::linearToDbfs(noiseRms) << "\n"
+                << "signal_rms_dbfs=" << DevicesForge::linearToDbfs(signalRms) << "\n"
+                << "snr_db=" << snrDb << "\n"
+                << "clipped_samples=" << clippedSamples << "\n"
                 << "min_peak=" << DevicesForge::CAPTURE_MIN_PEAK << "\n";
+
+            const char* quality = "ok";
+            if (capturePeak < DevicesForge::CAPTURE_MIN_PEAK)
+                quality = "silence_check_routing";
+            else if (clippedSamples > 0)
+                quality = "clipping_lower_gain";
+            else if (capturePeak < DevicesForge::CAPTURE_GOOD_PEAK_MIN)
+                quality = "level_low_raise_gain";
+            else if (snrDb < DevicesForge::CAPTURE_GOOD_SNR_DB)
+                quality = "low_snr_noisy_take";
+            log << "quality=" << quality << "\n";
 
             if (capturePeak < DevicesForge::CAPTURE_MIN_PEAK)
             {
@@ -327,7 +464,8 @@ namespace Steinberg
 
             std::vector<float> ir;
             if (!DevicesForge::SweepDeconvolver::deconvolve(recorded, recordedLength, reference,
-                                                            referenceLength, ir, DevicesForge::FFT_SIZE))
+                                                            referenceLength, ir, DevicesForge::FFT_SIZE,
+                                                            sampleRate))
                 return;
 
             DevicesForge::IRPostProcessSettings settings;
@@ -384,6 +522,13 @@ namespace Steinberg
             if (result != kResultOk) 
                 return result;
 
+            // Lista de un solo valor: el host muestra el string, no un número.
+            auto* versionParam = new StringListParameter(STR16("Version"),
+                DevicesForge::PluginParamIDs::VERSION_LABEL, nullptr,
+                ParameterInfo::kIsReadOnly);
+            versionParam->appendString(STR16(FULL_VERSION_STR));
+            parameters.addParameter(versionParam);
+
             parameters.addParameter(STR16("Mix"), STR16("%"), 100, 1.0,
                 ParameterInfo::kCanAutomate, DevicesForge::PluginParamIDs::MIX);
 
@@ -416,6 +561,9 @@ namespace Steinberg
             parameters.addParameter(STR16("Generate"), nullptr, 1, 0.0,
                 ParameterInfo::kCanAutomate, DevicesForge::PluginParamIDs::GENERATE);
 
+            parameters.addParameter(STR16("ClrLatest"), nullptr, 1, 1.0,
+                ParameterInfo::kCanAutomate, DevicesForge::PluginParamIDs::CLEAR_LATEST);
+
             auto* exportFormatParam = new StringListParameter(STR16("ExportFmt"),
                 DevicesForge::PluginParamIDs::EXPORT_FORMAT);
             exportFormatParam->appendString(STR16("WAV24"));
@@ -427,8 +575,20 @@ namespace Steinberg
             parameters.addParameter(STR16("Export"), nullptr, 1, 0.0,
                 ParameterInfo::kCanAutomate, DevicesForge::PluginParamIDs::EXPORT);
 
-            parameters.addParameter(STR16("InPeak"), nullptr, 0, 0.0,
-                ParameterInfo::kIsReadOnly, DevicesForge::PluginParamIDs::INPUT_PEAK);
+            // Medidor de entrada en dBFS: legible antes de disparar Generate.
+            parameters.addParameter(new RangeParameter(STR16("InPeak"),
+                DevicesForge::PluginParamIDs::INPUT_PEAK,
+                STR16("dB"),
+                DevicesForge::METER_FLOOR_DB, 0.0,
+                DevicesForge::METER_FLOOR_DB,
+                0, ParameterInfo::kIsReadOnly));
+
+            // 0 ms = no hay IR capturada en memoria (el plugin solo pasa señal).
+            parameters.addParameter(new RangeParameter(STR16("IRLen"),
+                DevicesForge::PluginParamIDs::IR_LENGTH_MS,
+                STR16("ms"),
+                0.0, DevicesForge::IR_LENGTH_METER_MAX_MS, 0.0,
+                0, ParameterInfo::kIsReadOnly));
 
             return kResultOk;
         }
@@ -445,7 +605,7 @@ namespace Steinberg
 
             IBStreamer streamer(state, kLittleEndian);
             float savedMix = 1.0f;
-            float savedGain = 0.0f;
+            float savedGain = 0.5f;
             float savedSignalType = 0.0f;
             float savedDuration = DevicesForge::signalDurationNormalizedDefault();
 

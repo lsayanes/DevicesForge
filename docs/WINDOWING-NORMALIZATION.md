@@ -12,6 +12,7 @@ Generate → Capture (ring buffer) → Deconvolución → Windowing → Normaliz
 |-------|--------|----------|
 | Captura | `RingCaptureBuffer` | Guarda la respuesta del dispositivo (pre/post trigger) |
 | Deconvolución | `SweepDeconvolver` | Extrae la IR cruda: `IR ≈ IFFT( FFT(grabado) / FFT(referencia) )` |
+| Limitado en banda | `SweepDeconvolver` | Regulariza la división y descarta lo que está fuera del sweep |
 | Ventaneo | `IRPostProcessor` | Atenúa suavemente la cola de la IR para evitar truncamiento abrupto |
 | Normalización | `IRPostProcessor` | Escala la IR para un pico objetivo (p. ej. 0 dBFS) |
 
@@ -58,6 +59,19 @@ Ajusta la **escala** de la IR para que distintas capturas sean comparables y el 
 Constantes compartidas en [`DevicesForge.h`](../src/plugin/DevicesForge.h): `kPi` / `kPiF`, `kTwoPi` / `kTwoPiF`, `IR_NORMALIZE_PEAK_TARGET`, etc.
 
 Alternativas futuras (no implementadas): normalización por energía/RMS, objetivo en dBFS distinto de 0.
+
+## Regularización y limitado en banda de la deconvolución
+
+Dividir por `FFT(referencia)` solo tiene sentido donde el sweep **tiene energía**. Fuera de su banda (`SWEEP_FREQ_START_HZ` = 20 Hz a `SWEEP_FREQ_END_HZ` = 20 kHz) el denominador es prácticamente cero y la división amplifica ruido de medición hasta varios órdenes de magnitud.
+
+`SweepDeconvolver::deconvolve` aplica dos protecciones:
+
+1. **Regularización de Tikhonov relativa**: `denom = |Ref|² + DECONV_REGULARIZATION · max|Ref|²`. El epsilon escala con la energía real de la referencia, en vez de ser una constante fija.
+2. **Peso de banda** (`bandWeight`): 1 dentro de la banda del sweep, 0 fuera, con transición coseno (media octava abajo, 15 % arriba) para no introducir ringing.
+
+`deconvolve` recibe `sampleRate` porque sin él no puede traducir bins a Hz.
+
+> **Por qué importa.** Sin esto, una IR capturada a 48 kHz concentraba el **100 % de su energía entre 20 y 24 kHz** y la banda audible quedaba 44 dB por debajo. Como la normalización por pico escala respecto de esa basura ultrasónica, la IR audible terminaba con un pico de 0,0057: al convolucionar, la emulación era inaudible y con Mix al 100 % (todo wet) no se escuchaba nada. El test `SweepDeconvolverTest.EnergyStaysInSweepBand` bloquea esta regresión.
 
 ## Cuándo se ejecuta en el plugin
 
