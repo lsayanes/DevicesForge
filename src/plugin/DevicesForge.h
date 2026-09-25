@@ -51,6 +51,17 @@ namespace DevicesForge
 	constexpr float SIGNAL_DURATION_DEFAULT = 1.0f;
 	constexpr float SWEEP_FREQ_START_HZ = 20.0f;
 	constexpr float SWEEP_FREQ_END_HZ = 20000.0f;
+
+	/** Tono de calibración: continuo, sin captura. */
+	constexpr float CALIBRATE_TONE_HZ = 1000.0f;
+
+	enum class CalibrateSignal : int32_t
+	{
+		Tone1k = 0,
+		Sweep = 1
+	};
+
+	constexpr int32_t NUM_CALIBRATE_SIGNALS = 2;
 	constexpr int32_t MLS_REGISTER_BITS = 16;
 	constexpr int32_t MLS_PERIOD = (1 << MLS_REGISTER_BITS) - 1;
 
@@ -112,6 +123,14 @@ namespace DevicesForge
 		return static_cast<SignalType>(index);
 	}
 
+	inline CalibrateSignal normalizedToCalibrateSignal(float normalized)
+	{
+		int32_t index = static_cast<int32_t>(normalized * static_cast<float>(NUM_CALIBRATE_SIGNALS - 1) + 0.5f);
+		if (index < 0) index = 0;
+		if (index >= NUM_CALIBRATE_SIGNALS) index = NUM_CALIBRATE_SIGNALS - 1;
+		return static_cast<CalibrateSignal>(index);
+	}
+
 	namespace PluginParamIDs 
 	{
 		constexpr uint32_t IR_SELECT = 1001;
@@ -130,6 +149,10 @@ namespace DevicesForge
 		constexpr uint32_t VERSION_LABEL = 1012;
 		/** Solo lectura: largo en ms de la IR cargada (0 = sin IR → passthrough). */
 		constexpr uint32_t IR_LENGTH_MS = 1013;
+		/** On: envía tono/sweep de calibración (sin captura) para ajustar el loop. */
+		constexpr uint32_t CALIBRATE = 1014;
+		/** 1 kHz continuo o sweep en bucle (usa Duration). */
+		constexpr uint32_t CALIBRATE_SIGNAL = 1015;
 	}
 
 	/** Tope del indicador IRLen (ms). */

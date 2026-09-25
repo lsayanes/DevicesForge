@@ -64,6 +64,8 @@ namespace Steinberg
                 prevGenerateOn = paramGenerate >= 0.5f;
                 sweepActive = false;
                 notifyGenerateOff = false;
+                prevCalibrateOn = paramCalibrate >= 0.5f;
+                notifyCalibrateOff = false;
                 prevCaptureComplete = false;
                 prevExportOn = paramExport >= 0.5f;
             } 
@@ -123,6 +125,14 @@ namespace Steinberg
                                 if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue) 
                                     paramGenerate = static_cast<float>(value);
                                 break;
+                            case DevicesForge::PluginParamIDs::CALIBRATE:
+                                if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue)
+                                    paramCalibrate = static_cast<float>(value);
+                                break;
+                            case DevicesForge::PluginParamIDs::CALIBRATE_SIGNAL:
+                                if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue)
+                                    paramCalibrateSignal = static_cast<float>(value);
+                                break;
                             case DevicesForge::PluginParamIDs::CLEAR_LATEST:
                                 if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue) 
                                     paramClearLatest = static_cast<float>(value);
@@ -143,12 +153,23 @@ namespace Steinberg
             const bool generateOn = paramGenerate >= 0.5f;
             const auto signalType = DevicesForge::normalizedToSignalType(paramSignalType);
             const float signalDuration = DevicesForge::normalizedToDuration(paramSignalDuration);
+            const auto calSignal = DevicesForge::normalizedToCalibrateSignal(paramCalibrateSignal);
+            bool calibrateOn = paramCalibrate >= 0.5f;
 
             if (!generateOn && prevGenerateOn)
                 sweepActive = false;
 
             if (generateOn && !prevGenerateOn) 
             {
+                // Generate manda: apaga Cal para no mezclar tono de prueba con la toma.
+                if (calibrateOn)
+                {
+                    calibrateOn = false;
+                    paramCalibrate = 0.0f;
+                    notifyCalibrateOff = true;
+                    generator.stop();
+                }
+
                 if (paramClearLatest >= 0.5f)
                     DevicesForge::IRExporter::clearSessionDirectory("latest");
 
@@ -181,6 +202,38 @@ namespace Steinberg
                 prevGenerateOn = false;
                 notifyGenerateOff = true;
             }
+
+            // Cal no captura: solo manda señal para ajustar Gain / InPeak del loop.
+            if (sweepActive && calibrateOn)
+            {
+                calibrateOn = false;
+                paramCalibrate = 0.0f;
+                notifyCalibrateOff = true;
+            }
+
+            if (!sweepActive)
+            {
+                const bool wantSweepLoop = calibrateOn &&
+                    calSignal == DevicesForge::CalibrateSignal::Sweep;
+                if (wantSweepLoop)
+                {
+                    if (!generator.isLooping() ||
+                        std::abs(generator.getDuration() - signalDuration) > 1.0e-4f)
+                    {
+                        generator.setType(DevicesForge::SignalType::SineSweep);
+                        generator.setDuration(signalDuration);
+                        generator.startLoop();
+                    }
+                }
+                else
+                {
+                    if (generator.isLooping())
+                        generator.stop();
+                    if (calibrateOn && !prevCalibrateOn)
+                        generator.resetTonePhase();
+                }
+            }
+            prevCalibrateOn = calibrateOn;
 
             const bool exportOn = paramExport >= 0.5f;
             if (exportOn && !prevExportOn)
@@ -248,6 +301,18 @@ namespace Steinberg
                         queue->addPoint(0, 0.0, pointIndex);
                     }
                 }
+
+                if (notifyCalibrateOff)
+                {
+                    notifyCalibrateOff = false;
+                    int32 queueIndexCal = 0;
+                    if (IParamValueQueue* queue = outParams->addParameterData(
+                            DevicesForge::PluginParamIDs::CALIBRATE, queueIndexCal))
+                    {
+                        int32 pointIndex = 0;
+                        queue->addPoint(0, 0.0, pointIndex);
+                    }
+                }
             }
 
             const bool captureComplete = captureBuffer.isComplete();
@@ -261,10 +326,14 @@ namespace Steinberg
             void** out = getChannelBuffersPointer(processSetup, data.outputs[0]);
             const int32 numOutChannels = data.outputs[0].numChannels;
 
-            if (generator.isPlaying()) 
+            if (generator.isPlaying() || calibrateOn) 
             {
                 float* dest = static_cast<float*>(out[0]);
-                generator.render(dest, data.numSamples);
+                if (generator.isPlaying())
+                    generator.render(dest, data.numSamples);
+                else
+                    generator.renderTone(dest, data.numSamples, DevicesForge::CALIBRATE_TONE_HZ);
+
                 for (int32 i = 0; i < data.numSamples; ++i) 
                     dest[i] *= gainLinear;
 
@@ -335,6 +404,8 @@ namespace Steinberg
             paramSignalDuration = savedDuration;
             paramGenerate = 0.0f;
             prevGenerateOn = false;
+            paramCalibrate = 0.0f;
+            prevCalibrateOn = false;
 
             // La IR se guarda junto a los parámetros: sin esto habría que
             // recapturar el dispositivo cada vez que se abre el proyecto.
@@ -561,6 +632,15 @@ namespace Steinberg
             parameters.addParameter(STR16("Generate"), nullptr, 1, 0.0,
                 ParameterInfo::kCanAutomate, DevicesForge::PluginParamIDs::GENERATE);
 
+            parameters.addParameter(STR16("Cal"), nullptr, 1, 0.0,
+                ParameterInfo::kCanAutomate, DevicesForge::PluginParamIDs::CALIBRATE);
+
+            auto* calSignalParam = new StringListParameter(STR16("CalSig"),
+                DevicesForge::PluginParamIDs::CALIBRATE_SIGNAL);
+            calSignalParam->appendString(STR16("1kHz"));
+            calSignalParam->appendString(STR16("Sweep"));
+            parameters.addParameter(calSignalParam);
+
             parameters.addParameter(STR16("ClrLatest"), nullptr, 1, 1.0,
                 ParameterInfo::kCanAutomate, DevicesForge::PluginParamIDs::CLEAR_LATEST);
 
@@ -619,6 +699,7 @@ namespace Steinberg
             setParamNormalized(DevicesForge::PluginParamIDs::SIGNAL_TYPE, savedSignalType);
             setParamNormalized(DevicesForge::PluginParamIDs::SIGNAL_DURATION, savedDuration);
             setParamNormalized(DevicesForge::PluginParamIDs::GENERATE, 0.0);
+            setParamNormalized(DevicesForge::PluginParamIDs::CALIBRATE, 0.0);
 
             return kResultOk;
         }

@@ -107,7 +107,7 @@ Reglas de producto:
 
 - FFT `CONV_FFT_SIZE = 2048` → bloque interno **B = 1024** samples.
 - La IR (hasta `MAX_IR_LENGTH` = 65536) se parte en trozos de B; la FFT de cada trozo se **cachea** y solo se recalcula cuando cambia la IR (`IRManager::getRevision`) o el índice seleccionado.
-- Por canal: FIFO de entrada/salida + *frequency-delay line* (historia de espectros). **Estado independiente por canal** (estéreo real).
+- Por canal: FIFO de entrada/salida + *frequency-delay line* (historia de espectros). El **estado** es independiente (L y R no se mezclan al emular), pero la **IR es la misma** en ambos. No hay captura estéreo: ver [`CAPTURE-WORKFLOW.md`](CAPTURE-WORKFLOW.md).
 - El producto y acumulación en frecuencia usan `pffft_zconvolve_accumulate` (formato interno de pffft — el orden empaquetado DC/Nyquist se maneja correctamente).
 - **Mix** se aplica en tiempo con el dry retrasado B samples, así dry y wet quedan alineados (sin comb filtering).
 

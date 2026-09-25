@@ -28,12 +28,16 @@ namespace DevicesForge
 		referenceLength = 0;
 		playIndex = 0;
 		playing = false;
+		looping = false;
+		tonePhase = 0.0;
 	}
 
 	void SignalGenerator::reset()
 	{
 		playing = false;
+		looping = false;
 		playIndex = 0;
+		tonePhase = 0.0;
 	}
 
 	void SignalGenerator::setType(SignalType newType)
@@ -53,7 +57,31 @@ namespace DevicesForge
 
 		buildReference();
 		playIndex = 0;
+		looping = false;
 		playing = referenceLength > 0;
+	}
+
+	void SignalGenerator::startLoop()
+	{
+		if (reference.empty())
+			prepare(sampleRate);
+
+		buildReference();
+		playIndex = 0;
+		looping = referenceLength > 0;
+		playing = looping;
+	}
+
+	void SignalGenerator::stop()
+	{
+		playing = false;
+		looping = false;
+		playIndex = 0;
+	}
+
+	void SignalGenerator::resetTonePhase()
+	{
+		tonePhase = 0.0;
 	}
 
 	void SignalGenerator::render(float* out, int32_t numSamples)
@@ -67,17 +95,43 @@ namespace DevicesForge
 			return;
 		}
 
+		if (looping)
+		{
+			for (int32_t i = 0; i < numSamples; ++i)
+			{
+				out[i] = reference[static_cast<size_t>(playIndex)];
+				playIndex = (playIndex + 1) % referenceLength;
+			}
+			return;
+		}
+
 		int32_t i = 0;
 		while (i < numSamples && playIndex < referenceLength)
-		{
 			out[i++] = reference[static_cast<size_t>(playIndex++)];
-		}
 
 		if (i < numSamples)
 			std::memset(out + i, 0, static_cast<size_t>(numSamples - i) * sizeof(float));
 
 		if (playIndex >= referenceLength)
 			playing = false;
+	}
+
+	void SignalGenerator::renderTone(float* out, int32_t numSamples, float frequencyHz)
+	{
+		if (!out || numSamples <= 0)
+			return;
+
+		const double sr = sampleRate > 0.0 ? sampleRate : SAMPLE_RATE_DEFAULT;
+		const double freq = std::max(0.0, static_cast<double>(frequencyHz)); //por si es negativo
+		const double step = kTwoPi * freq / sr; //muestras por paso
+
+		for (int32_t i = 0; i < numSamples; ++i)
+		{
+			out[i] = static_cast<float>(std::sin(tonePhase)); //onda sinusoidal pura de 0 a 2π
+			tonePhase += step;
+			if (tonePhase >= kTwoPi)
+				tonePhase -= kTwoPi;
+		}
 	}
 
 	const float* SignalGenerator::getReference() const

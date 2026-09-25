@@ -204,7 +204,9 @@ Genera `test_output.wav` con un seno de prueba (útil para humo, no sustituye el
 | 1004 | AI | Denoise IA (on/off) |
 | 1005 | Signal | Sweep / Dirac / Pink / MLS (**activo** con Generate) |
 | 1006 | Duration | 0.5–5.0 s (Dirac ignora este valor) |
-| 1007 | Generate | Off→On dispara sweep + captura; **vuelve a Off** al terminar el sweep |
+| 1007 | Generate | Off→On dispara sweep + captura; **vuelve a Off** al terminar el sweep; apaga Cal |
+| 1014 | Cal | On: tono/sweep de calibración **sin captura** (ajustar loop con InPeak) |
+| 1015 | CalSig | **1kHz** continuo o **Sweep** en bucle (usa Duration) |
 | 1008 | ExportFmt | WAV24 / WAV32f / AIFF96 / DFIR |
 | 1009 | Export | Off→On exporta la última IR al formato elegido |
 | 1010 | InPeak | Solo lectura: pico de entrada en **dBFS** (−60…0), con peak-hold |

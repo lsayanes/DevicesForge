@@ -406,6 +406,45 @@ TEST_F(SignalGeneratorTest, MLSIsBipolarWithPeriod) {
     EXPECT_EQ(matches, MLS_PERIOD);
 }
 
+TEST_F(SignalGeneratorTest, ToneIsOneKilohertz) {
+    std::vector<float> block(48000, 0.0f);
+    gen->renderTone(block.data(), 48000, CALIBRATE_TONE_HZ);
+
+    int32_t crossings = 0;
+    for (int32_t i = 1; i < 48000; ++i) {
+        if (block[static_cast<size_t>(i - 1)] < 0.0f && block[static_cast<size_t>(i)] >= 0.0f)
+            ++crossings;
+    }
+    EXPECT_NEAR(crossings, 1000, 2);
+
+    float peak = 0.0f;
+    for (float s : block)
+        peak = std::max(peak, std::abs(s));
+    EXPECT_NEAR(peak, 1.0f, 0.01f);
+}
+
+TEST_F(SignalGeneratorTest, LoopKeepsPlayingPastOneDuration) {
+    gen->setType(SignalType::SineSweep);
+    gen->setDuration(0.5f);
+    gen->startLoop();
+    ASSERT_TRUE(gen->isLooping());
+    ASSERT_TRUE(gen->isPlaying());
+
+    std::vector<float> block(48000, 0.0f);
+    gen->render(block.data(), 48000);
+    EXPECT_TRUE(gen->isPlaying());
+    EXPECT_TRUE(gen->isLooping());
+
+    float peak = 0.0f;
+    for (float s : block)
+        peak = std::max(peak, std::abs(s));
+    EXPECT_GT(peak, 0.5f);
+
+    gen->stop();
+    EXPECT_FALSE(gen->isPlaying());
+    EXPECT_FALSE(gen->isLooping());
+}
+
 TEST_F(SignalGeneratorTest, IdleRenderIsSilence) {
     std::vector<float> block(32, 1.0f);
     gen->render(block.data(), 32);

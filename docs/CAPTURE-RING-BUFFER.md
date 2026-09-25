@@ -11,7 +11,7 @@ Grabar en memoria la señal que **entra** al plugin (retorno del dispositivo ví
 
 El disparo es **automático** en el mismo instante en que activás **Generate** (flanco Off → On), alineado con el arranque del [`SignalGenerator`](../src/dsp/SignalGenerator.cpp).
 
-La captura queda en RAM (mono, promedio L/R). Al completarse, el plugin ejecuta deconvolución + ventaneo + normalización y **exporta** archivos (ver [`WINDOWING-NORMALIZATION.md`](WINDOWING-NORMALIZATION.md), [`EXPORT-FORMATS.md`](EXPORT-FORMATS.md)).
+La captura queda en RAM (**una sola IR mono**, promedio L/R). El ring interno sí guarda L y R por separado, pero la deconvolución y `IRManager` trabajan un único buffer. Un loop estéreo (dos canales de mixer → Stereo In) **no** genera un IR por canal: ver la aclaración en [`CAPTURE-WORKFLOW.md`](CAPTURE-WORKFLOW.md). Al completarse, el plugin ejecuta deconvolución + ventaneo + normalización y **exporta** archivos (ver [`WINDOWING-NORMALIZATION.md`](WINDOWING-NORMALIZATION.md), [`EXPORT-FORMATS.md`](EXPORT-FORMATS.md)).
 
 ## Cadena en el estudio
 
@@ -93,7 +93,7 @@ Verificado en **Cubase AI Elements 13** (aplica a toda la línea Cubase):
 
 Diagnóstico rápido: con Monitor ON, **InPeak** debe moverse con cualquier señal en la entrada, sin pulsar Generate. Si no se mueve, el routing sigue mal.
 
-**Antes de Generate:** no hay “nivel de sweep” previo; usá **InPeak** + **Gain** (−6…−12 dB si el loop es fuerte) para comprobar el retorno. **Generate** se apaga solo al terminar el sweep; **ClrLatest** On limpia `exports/latest/` al inicio de cada toma (ver [`EXPORT-FORMATS.md`](EXPORT-FORMATS.md)).
+**Antes de Generate:** **Cal** On envía **1 kHz** continuo o un **sweep en bucle** (CalSig) × Gain, **sin** disparar captura. Ajustá el loop mirando InPeak (−18…−6 dBFS). Generate apaga Cal solo. **Generate** se apaga al terminar el sweep; **ClrLatest** On limpia `exports/latest/` al inicio de cada toma (ver [`EXPORT-FORMATS.md`](EXPORT-FORMATS.md)).
 
 ### Autotest sin DAW
 

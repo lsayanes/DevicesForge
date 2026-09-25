@@ -22,7 +22,7 @@ Si `capture_raw` está en **silencio**, el plugin **borra** los `IR.*` viejos y 
 
 Duración de `capture_raw`: **no** es el valor de Duration. Es pre 100 ms + post `max(1 s, Duration + 0.25 s)` → con Duration 1 s ≈ **1.35 s**.
 
-Parámetro de solo lectura **InPeak**: nivel de la **entrada del plugin** en **dBFS** (−60…0) con peak-hold. Con **Monitor ON** y el loop cableado, comprobalo **antes** de Generate: apuntá a picos entre **−18 y −6 dBFS**. Si queda en −60, el retorno no llega al insert (routing).
+Parámetro de solo lectura **InPeak**: nivel de la **entrada del plugin** en **dBFS** (−60…0) con peak-hold. Con **Monitor ON**, activá **Cal** (1 kHz o sweep en bucle) y ajustá **Gain** / hardware **antes** de Generate: apuntá a picos entre **−18 y −6 dBFS**. Si queda en −60, el retorno no llega al insert (routing).
 
 `capture_log.txt` incluye un veredicto de la toma:
 

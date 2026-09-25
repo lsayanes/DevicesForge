@@ -60,6 +60,10 @@ namespace Steinberg
             bool prevCaptureComplete = false;
             float paramClearLatest = 1.0f;
             bool notifyGenerateOff = false;
+            float paramCalibrate = 0.0f;
+            float paramCalibrateSignal = 0.0f;
+            bool prevCalibrateOn = false;
+            bool notifyCalibrateOff = false;
             float paramExportFormat = 0.0f;
             float paramExport = 0.0f;
             bool prevExportOn = false;

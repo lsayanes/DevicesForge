@@ -21,9 +21,16 @@ namespace DevicesForge
 		void setDuration(float seconds);
 
 		void start();
+		/** Reproduce la referencia en bucle (calibración). No dispara captura. */
+		void startLoop();
+		void stop();
 		bool isPlaying() const { return playing; }
+		bool isLooping() const { return looping; }
 
 		void render(float* out, int32_t numSamples);
+		/** Seno continuo (fase persistente). Independiente de start()/referencia. */
+		void renderTone(float* out, int32_t numSamples, float frequencyHz);
+		void resetTonePhase();
 
 		const float* getReference() const;
 		int32_t getReferenceLength() const { return referenceLength; }
@@ -48,6 +55,8 @@ namespace DevicesForge
 		int32_t referenceLength { 0 };
 		int32_t playIndex { 0 };
 		bool playing { false };
+		bool looping { false };
+		double tonePhase { 0.0 };
 	};
 
 } // DevicesForge
