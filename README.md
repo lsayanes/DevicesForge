@@ -51,7 +51,7 @@ El repositorio compila un VST3 válido (pasa el **validator** del VST3 SDK). Par
 | `SignalGenerator` | Sweep log, Dirac, pink noise, MLS; cableado a `process()` |
 | `RingCaptureBuffer` | Ring estéreo + captura mono; **disparo automático** al activar Generate |
 | `SweepDeconvolver` + `IRPostProcessor` | Deconvolución FFT al completar captura; Hanning + peak norm → `IRManager` |
-| `IRExporter` | Auto-export a `~/Documents/DevicesForge/exports/latest/`; params **ExportFmt** + **Export** |
+| `IRExporter` | Auto-export a `~/Documents/DevicesForge/exports/latest/`; archivar con **SaveIR** / **LoadIR** |
 | `ONNXInference` | Enlazado si hay ONNX Runtime; **sin** carga de modelo en runtime |
 | Editor gráfico (VSTGUI) | **No** |
 
@@ -199,7 +199,8 @@ Genera `test_output.wav` con un seno de prueba (útil para humo, no sustituye el
 | ID | Nombre | Descripción |
 |----|--------|-------------|
 | 1002 | Mix | 0–100 % (reservado para dry/wet convolver) |
-| 1003 | Gain | −12 … +12 dB (**activo** en `process()`) |
+| 1003 | Gain | −12 … +12 dB: volumen de la **emulación** (después del Mix) |
+| 1016 | Send | −12 … +12 dB: nivel del **sweep** hacia el dispositivo (solo Generate) |
 | 1001 | IR | Selección de IR 0–3 (multi-nivel) |
 | 1004 | AI | Denoise IA (on/off) |
 | 1005 | Signal | Sweep / Dirac / Pink / MLS (**activo** con Generate) |
@@ -207,10 +208,12 @@ Genera `test_output.wav` con un seno de prueba (útil para humo, no sustituye el
 | 1007 | Generate | Off→On dispara sweep + captura; **vuelve a Off** al terminar el sweep; apaga Cal |
 | 1014 | Cal | On: tono/sweep de calibración **sin captura** (ajustar loop con InPeak) |
 | 1015 | CalSig | **1kHz** continuo o **Sweep** en bucle (usa Duration) |
-| 1008 | ExportFmt | WAV24 / WAV32f / AIFF96 / DFIR |
-| 1009 | Export | Off→On exporta la última IR al formato elegido |
+| 1008 | ExportFmt | Oculto: formato del auto-export a `latest/` |
+| 1009 | Export | Oculto: reexportar a `latest/` (usar SaveIR) |
+| 1017 | SaveIR | Diálogo: guardar la IR en la carpeta que elijas (WAV float) |
+| 1018 | LoadIR | Diálogo: cargar una IR guardada |
 | 1010 | InPeak | Solo lectura: pico de entrada en **dBFS** (−60…0), con peak-hold |
-| 1011 | ClrLatest | On (default): borra `exports/latest/` al iniciar cada Generate |
+| 1011 | ClrLatest | Oculto; On: borra `exports/latest/` al iniciar cada Generate |
 | 1012 | Version | Solo lectura: build (`FULL_VERSION_STR` en `version.h`) |
 | 1013 | IRLen | Solo lectura: largo de la IR en memoria (**0 ms = sin IR**, passthrough) |
 

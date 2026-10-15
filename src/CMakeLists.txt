@@ -35,7 +35,14 @@ set(PLUGIN_SOURCES
 set(PLUGIN_HEADERS
     plugin/PluginProcessor.h
     plugin/PluginCIDs.h
+    plugin/FileDialog.h
 )
+
+if(APPLE)
+    list(APPEND PLUGIN_SOURCES plugin/FileDialog.mm)
+else()
+    list(APPEND PLUGIN_SOURCES plugin/FileDialog.cpp)
+endif()
 
 # ============================================================================
 # ONNX Runtime (optional)
@@ -104,6 +111,21 @@ endif()
 # ============================================================================
 # Platform Settings
 # ============================================================================
+if(WIN32)
+    target_link_libraries(DevicesForge PRIVATE comdlg32)
+endif()
+
+if(APPLE)
+    set_source_files_properties(
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugin/FileDialog.mm" PROPERTIES
+        COMPILE_FLAGS "-fobjc-arc"
+    )
+    find_library(APPKIT_FRAMEWORK AppKit)
+    if(APPKIT_FRAMEWORK)
+        target_link_libraries(DevicesForge PRIVATE ${APPKIT_FRAMEWORK})
+    endif()
+endif()
+
 if(SMTG_MAC)
     smtg_target_set_bundle(DevicesForge
         BUNDLE_IDENTIFIER com.devicesforge.channel

@@ -55,6 +55,20 @@ namespace DevicesForge
 	{
 	public:
 		static std::string defaultExportDirectory();
+		/** Carpeta por defecto al guardar/cargar IR a mano. */
+		static std::string defaultLibraryDirectory();
+		/** Última carpeta usada en SaveIR/LoadIR (o library si no hay). */
+		static std::string rememberedBrowseDirectory();
+		static void rememberBrowseFile(const std::string& filePath);
+
+		static bool saveWavFloat32(const std::string& path,
+								   const float* samples,
+								   int32_t numSamples,
+								   double sampleRate);
+		/** Lee WAV IEEE float 32-bit (mono o primer canal). */
+		static bool loadWavFloat32(const std::string& path,
+								   std::vector<float>& samples,
+								   double& sampleRate);
 
 		static bool exportBuffer(const IRExportRequest& request);
 		static bool exportAllFormats(const std::string& directoryBaseName,

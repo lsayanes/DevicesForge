@@ -64,7 +64,7 @@ salida = entrada × (1 − mix) + convolución × mix
 | **100 %** | Solo **wet**: toda la señal pasa por la convolución |
 | **50 %** | Mezcla clásica dry/wet (útil para comparar A/B en la misma pista) |
 
-**Importante:** **Gain** (`OUTPUT_GAIN`) es independiente: hoy multiplica la señal **después** del passthrough en `process()`. Cuando integremos el convolver, hay que acordar el orden (típico: convolver con Mix → luego Gain, o Gain solo en dry path). Documento de implementación futura: aplicar `convolver.setMix(paramMix)` cada bloque y Gain al final del buffer de salida.
+**Send** (`SEND`) no entra acá: solo escala el sweep de Generate. **Gain** (`OUTPUT_GAIN`) multiplica la salida **después** del convolver (emulación). Orden: convolver + Mix → Gain.
 
 ## Parámetro **IR Select** (VST id `1001`)
 

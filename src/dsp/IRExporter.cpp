@@ -105,6 +105,132 @@ namespace DevicesForge
 		return std::string(home) + "/Documents/DevicesForge/exports";
 	}
 
+	std::string IRExporter::defaultLibraryDirectory()
+	{
+		const char* home = std::getenv("HOME");
+#if defined(_WIN32)
+		if (!home)
+			home = std::getenv("USERPROFILE");
+#endif
+		if (!home)
+			return "DevicesForge/library";
+
+		return std::string(home) + "/Documents/DevicesForge/library";
+	}
+
+	std::string IRExporter::rememberedBrowseDirectory()
+	{
+		const std::string marker = defaultLibraryDirectory() + "/.last_dir";
+		std::ifstream file(marker);
+		std::string dir;
+		if (file && std::getline(file, dir))
+		{
+			while (!dir.empty() && (dir.back() == '\r' || dir.back() == '\n' || dir.back() == ' '))
+				dir.pop_back();
+			if (!dir.empty())
+				return dir;
+		}
+		return defaultLibraryDirectory();
+	}
+
+	void IRExporter::rememberBrowseFile(const std::string& filePath)
+	{
+		if (filePath.empty())
+			return;
+		const auto pos = filePath.find_last_of("/\\");
+		const std::string dir = (pos == std::string::npos) ? defaultLibraryDirectory()
+														  : filePath.substr(0, pos);
+		writeTextFile(defaultLibraryDirectory() + "/.last_dir", dir + "\n");
+	}
+
+	bool IRExporter::saveWavFloat32(const std::string& path,
+									const float* samples,
+									int32_t numSamples,
+									double sampleRate)
+	{
+		const int32_t sr = static_cast<int32_t>(std::lround(sampleRate));
+		return writeWavFloat32(path, samples, numSamples, sr);
+	}
+
+	bool IRExporter::loadWavFloat32(const std::string& path,
+									std::vector<float>& samples,
+									double& sampleRate)
+	{
+		samples.clear();
+		sampleRate = SAMPLE_RATE_DEFAULT;
+
+		std::ifstream file(path, std::ios::binary);
+		if (!file)
+			return false;
+
+		char riff[12] = {};
+		file.read(riff, 12);
+		if (!file || std::memcmp(riff, "RIFF", 4) != 0 || std::memcmp(riff + 8, "WAVE", 4) != 0)
+			return false;
+
+		int16_t audioFormat = 0;
+		int16_t numChannels = 0;
+		int16_t bitsPerSample = 0;
+		int32_t wavSampleRate = 0;
+		std::vector<char> dataChunk;
+		bool haveFmt = false;
+		bool haveData = false;
+
+		while (file)
+		{
+			char chunkId[4] = {};
+			uint32_t chunkSize = 0;
+			if (!file.read(chunkId, 4) || !file.read(reinterpret_cast<char*>(&chunkSize), 4))
+				break;
+
+			if (std::memcmp(chunkId, "fmt ", 4) == 0)
+			{
+				std::vector<char> fmt(chunkSize);
+				if (chunkSize < 16 || !file.read(fmt.data(), static_cast<std::streamsize>(chunkSize)))
+					return false;
+				std::memcpy(&audioFormat, fmt.data(), 2);
+				std::memcpy(&numChannels, fmt.data() + 2, 2);
+				std::memcpy(&wavSampleRate, fmt.data() + 4, 4);
+				std::memcpy(&bitsPerSample, fmt.data() + 14, 2);
+				haveFmt = true;
+			}
+			else if (std::memcmp(chunkId, "data", 4) == 0)
+			{
+				dataChunk.resize(chunkSize);
+				if (chunkSize > 0 &&
+					!file.read(dataChunk.data(), static_cast<std::streamsize>(chunkSize)))
+					return false;
+				haveData = true;
+			}
+			else
+			{
+				file.seekg(static_cast<std::streamoff>(chunkSize), std::ios::cur);
+			}
+
+			if ((chunkSize & 1u) != 0)
+				file.seekg(1, std::ios::cur);
+		}
+
+		if (!haveFmt || !haveData || audioFormat != 3 || bitsPerSample != 32 || numChannels < 1)
+			return false;
+
+		const int32_t frameBytes = numChannels * static_cast<int32_t>(sizeof(float));
+		if (frameBytes <= 0)
+			return false;
+
+		const int32_t numFrames = static_cast<int32_t>(dataChunk.size()) / frameBytes;
+		if (numFrames <= 0 || numFrames > IR_STATE_MAX_SAMPLES)
+			return false;
+
+		samples.resize(static_cast<size_t>(numFrames));
+		const auto* interleaved = reinterpret_cast<const float*>(dataChunk.data());
+		for (int32_t i = 0; i < numFrames; ++i)
+			samples[static_cast<size_t>(i)] = interleaved[static_cast<size_t>(i * numChannels)];
+
+		sampleRate = wavSampleRate > 0 ? static_cast<double>(wavSampleRate) : SAMPLE_RATE_DEFAULT;
+		return true;
+	}
+
 	std::string IRExporter::formatExtension(IRExportFormat format)
 	{
 		switch (format)

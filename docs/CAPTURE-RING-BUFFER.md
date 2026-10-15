@@ -93,7 +93,7 @@ Verificado en **Cubase AI Elements 13** (aplica a toda la línea Cubase):
 
 Diagnóstico rápido: con Monitor ON, **InPeak** debe moverse con cualquier señal en la entrada, sin pulsar Generate. Si no se mueve, el routing sigue mal.
 
-**Antes de Generate:** **Cal** On envía **1 kHz** continuo o un **sweep en bucle** (CalSig) × Gain, **sin** disparar captura. Ajustá el loop mirando InPeak (−18…−6 dBFS). Generate apaga Cal solo. **Generate** se apaga al terminar el sweep; **ClrLatest** On limpia `exports/latest/` al inicio de cada toma (ver [`EXPORT-FORMATS.md`](EXPORT-FORMATS.md)).
+**Antes de Generate:** **Send** es el nivel del sweep hacia el dispositivo. **Gain** solo afecta la emulación. **Generate** se apaga al terminar el sweep y pisa `exports/latest/`. Para archivar la IR: **SaveIR** / **LoadIR**.
 
 ### Autotest sin DAW
 

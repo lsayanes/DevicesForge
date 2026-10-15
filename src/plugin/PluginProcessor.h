@@ -14,6 +14,9 @@
 #include "../ai/ONNXInference.h"
 #endif
 
+#include <mutex>
+#include <string>
+
 namespace Steinberg 
 {
     namespace Vst 
@@ -34,6 +37,7 @@ namespace Steinberg
             tresult PLUGIN_API process(ProcessData& data) SMTG_OVERRIDE;
             tresult PLUGIN_API setState(IBStream* state) SMTG_OVERRIDE;
             tresult PLUGIN_API getState(IBStream* state) SMTG_OVERRIDE;
+            tresult PLUGIN_API notify(IMessage* message) SMTG_OVERRIDE;
 
         private:
             DevicesForge::DynamicConvolver convolver;
@@ -48,6 +52,7 @@ namespace Steinberg
             float paramMix = 1.0f;
             // 0.5 normalizado = 0 dB. Debe coincidir con el default del controller.
             float paramOutputGain = 0.5f;
+            float paramSend = 0.5f;
             float paramIRSelect = 0.0f;
 #if defined(HAS_ONNX_RUNTIME)
             float paramAIDenoise = 0.0f;
@@ -70,6 +75,10 @@ namespace Steinberg
 
             void processCompletedCapture();
             void exportCurrentIR(bool allFormats);
+            void saveIRToPath(const std::string& path);
+            void loadIRFromPath(const std::string& path);
+
+            std::mutex irMutex;
 
             float meterPeak = 0.0f;   // peak-hold con decaimiento para InPeak
         };
@@ -86,6 +95,14 @@ namespace Steinberg
             tresult PLUGIN_API initialize(FUnknown* context) SMTG_OVERRIDE;
             tresult PLUGIN_API terminate() SMTG_OVERRIDE;
             tresult PLUGIN_API setComponentState(IBStream* state) SMTG_OVERRIDE;
+            tresult PLUGIN_API setParamNormalized(ParamID tag, ParamValue value) SMTG_OVERRIDE;
+
+        private:
+            void sendIRPathMessage(const char* messageId, const std::string& path);
+            void runFileDialogOnce(ParamID tag);
+
+            bool fileDialogBusy { false };
+            double fileDialogIgnoreUntil { 0.0 };
         };
 
     } //  Vst

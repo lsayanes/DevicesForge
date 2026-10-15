@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <cmath>
 #include <complex>
+#include <cstdio>
 #include <fstream>
 #include <memory>
 #include <vector>
@@ -595,6 +596,30 @@ TEST(IRExporterTest, WritesAllFormatsToTempDir) {
     EXPECT_EQ(riff[1], 'I');
     EXPECT_EQ(riff[2], 'F');
     EXPECT_EQ(riff[3], 'F');
+}
+
+TEST(IRExporterTest, RemembersLastBrowseDirectory) {
+    const std::string fakeFile = IRExporter::defaultLibraryDirectory() + "/subdir/IR.float.wav";
+    IRExporter::rememberBrowseFile(fakeFile);
+    EXPECT_EQ(IRExporter::rememberedBrowseDirectory(),
+              IRExporter::defaultLibraryDirectory() + "/subdir");
+}
+
+TEST(IRExporterTest, WavFloat32RoundTripPreservesSamples) {
+    const std::string path = IRExporter::defaultLibraryDirectory() + "/unit_roundtrip.float.wav";
+    const std::vector<float> original = {0.0f, 0.25f, -0.5f, 0.75f, -1.0f};
+    ASSERT_TRUE(IRExporter::saveWavFloat32(path, original.data(),
+                                          static_cast<int32_t>(original.size()), 48000.0));
+
+    std::vector<float> loaded;
+    double sampleRate = 0.0;
+    ASSERT_TRUE(IRExporter::loadWavFloat32(path, loaded, sampleRate));
+    EXPECT_NEAR(sampleRate, 48000.0, 0.5);
+    ASSERT_EQ(loaded.size(), original.size());
+    for (size_t i = 0; i < original.size(); ++i)
+        EXPECT_NEAR(loaded[i], original[i], 1.0e-6f);
+
+    std::remove(path.c_str());
 }
 
 TEST(IRExporterTest, ClearSessionDirectoryRemovesKnownFiles) {

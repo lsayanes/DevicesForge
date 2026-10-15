@@ -149,10 +149,15 @@ namespace DevicesForge
 		constexpr uint32_t VERSION_LABEL = 1012;
 		/** Solo lectura: largo en ms de la IR cargada (0 = sin IR → passthrough). */
 		constexpr uint32_t IR_LENGTH_MS = 1013;
-		/** On: envía tono/sweep de calibración (sin captura) para ajustar el loop. */
+		/** On: envía tono/sweep de calibración (sin captura). Oculto en el panel. */
 		constexpr uint32_t CALIBRATE = 1014;
-		/** 1 kHz continuo o sweep en bucle (usa Duration). */
 		constexpr uint32_t CALIBRATE_SIGNAL = 1015;
+		/** Nivel del sweep hacia el dispositivo (−12…+12 dB). No afecta la emulación. */
+		constexpr uint32_t SEND = 1016;
+		/** Off→On: diálogo para guardar la IR en un .wav float a elección. */
+		constexpr uint32_t SAVE_IR = 1017;
+		/** Off→On: diálogo para cargar una IR guardada. */
+		constexpr uint32_t LOAD_IR = 1018;
 	}
 
 	/** Tope del indicador IRLen (ms). */

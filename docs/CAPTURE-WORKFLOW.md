@@ -18,6 +18,8 @@ Un loop tipo “placa → dos canales de mixer paneados L/R → Stereo In de la 
 
 Si solo hay señal en un canal y el otro llega en silencio, ese promedio **atenúa 6 dB** la toma buena. InPeak igual se mueve (mira el pico de cualquier canal), pero la IR queda más floja.
 
+En Cubase, **Stereo In (Izquierda)** vs **(Derecha)** es la entrada física de la pista. Si el pedal está en la derecha y la pista queda en (Izquierda), InPeak no se mueve y Generate graba silencio.
+
 Para pedal o un canal de consola este modelo es el correcto. Captura dual (una IR por canal) no existe todavía; el detalle interno está en [`CAPTURE-RING-BUFFER.md`](CAPTURE-RING-BUFFER.md).
 
 ## 1. Preparación
@@ -55,16 +57,13 @@ Interface:
 - Pan: **Center**
 - Mute/Solo: **Normal**
 
-### Paso 2: Calibrar el loop (antes de Generate)
+### Paso 2: Nivel de envío
 
-**Cal** manda señal **sin capturar** ni tocar la IR. Sirve para poner Gain, faders de la mixer y la entrada de la placa donde querés, mirando **InPeak**.
+**Send** es el volumen del sweep hacia el pedal/consola (−12…+12 dB). **Gain** no entra en la toma: solo el volumen de la emulación después.
 
-1. Cablear el retorno: salida del plugin → dispositivo → entrada del plugin (vía interface). **Monitor ON** en Cubase.
-2. **CalSig** = **1kHz** (tono continuo, el más claro para nivel) o **Sweep** (repite el barrido de **Duration**, para oír graves/agudos del camino).
-3. Activar **Cal**. Ajustá **Gain** y los niveles del hardware hasta que InPeak quede entre **−18 y −6 dBFS**, sin recorte.
-4. Apagar **Cal** (o dejarlo: si disparás Generate, Cal se apaga solo).
-
-Cal no escribe `latest/` ni cambia IRLen. El tono usa el mismo Gain que el sweep de captura, así el nivel que ves es el de la toma.
+1. Cablear el retorno: salida del plugin → dispositivo → entrada del plugin. **Monitor ON** en Cubase.
+2. Empezar **Send** en 0 dB. Si la primera toma recorta (`quality=clipping` o acople), bajar Send y/o el Level del pedal. Si InPeak queda muy bajo, subir Send.
+3. **Mix** no afecta la captura.
 
 ### Paso 3: Generar sweep (y captura automática)
 1. Seleccionar **Signal** = Sine Sweep y **Duration** = **1.0 s**
@@ -81,6 +80,16 @@ En la versión actual **no** hace falta un botón **[CAPTURE]** aparte: la venta
 - Respuesta en frecuencia debe ser plana (±0.5 dB)
 - No debe haber clipping
 - Relación señal/ruido > 60 dB
+
+### Paso 6: Guardar y recargar la IR
+
+La IR vive en el plugin y también en el estado del **proyecto** (si guardás el .cpr). Si **sacás el insert** y lo volvés a poner, Cubase crea una instancia nueva: la muestra en memoria se pierde.
+
+- **SaveIR**: diálogo para elegir carpeta y nombre. Escribe un WAV float 32-bit. Por defecto ofrece `~/Documents/DevicesForge/library/`.
+- **LoadIR**: diálogo para ir a buscar ese archivo (u otro WAV float de DevicesForge).
+- **IRLen > 0** confirma que hay IR cargada.
+
+`exports/latest/` sigue siendo la copia automática de la última toma; SaveIR es la copia que **vos** archivás.
 
 ## 3. Captura Multi-Nivel (Dynamic Convolution)
 

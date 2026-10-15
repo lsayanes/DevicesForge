@@ -38,18 +38,24 @@ También registra `peak_dbfs`, `noise_floor_dbfs` (medido en el pre-trigger), `s
 
 **Generate** vuelve solo a **Off** cuando termina el sweep (el host debería reflejarlo; la captura post-trigger sigue un instante en segundo plano).
 
-**ClrLatest** (por defecto **On**): al pulsar Generate (flanco Off→On) borra `latest/` (`IR.*`, `capture_raw.float.wav`, `capture_log.txt`) antes de escribir la nueva toma. Desactivalo si querés conservar archivos viejos hasta exportarlos.
+Al pulsar Generate se borra `latest/` (`IR.*`, `capture_raw.float.wav`, `capture_log.txt`) y se escriben los archivos de la toma nueva. **ClrLatest** / **Export** / **ExportFmt** no están en el panel: archivar es **SaveIR**.
 
 `IR.aiff` está a **96 kHz**. En un proyecto a 48 kHz, si Cubase no remuestrea, se oye al **doble de duración** y la mitad de frecuencia.
 
-## Export manual (Cubase)
+Cada captura exitosa escribe **todos** los formatos de IR en `latest/` automáticamente. Para una copia que no se pise: **SaveIR**.
 
-Parámetros VST:
+## Guardar / cargar a elección (SaveIR / LoadIR)
 
-- **ExportFmt**: WAV24 / WAV32f / AIFF96 / DFIR
-- **Export**: flanco Off → On exporta la **última IR** en memoria al formato elegido (misma carpeta `latest/`).
+`latest/` se pisa en cada toma. Para quedarte con una IR:
 
-Cada captura exitosa vuelve a generar **todos** los formatos de IR automáticamente.
+| Parámetro | Qué hace |
+|-----------|----------|
+| **SaveIR** | Diálogo nativo (macOS y Windows): elegís carpeta y nombre. Escribe WAV IEEE float 32-bit. |
+| **LoadIR** | Diálogo nativo (macOS y Windows): abrís un `.wav` float guardado (o `IR.float.wav` de `latest/`). |
+
+Carpeta inicial del diálogo: la última que usaste (la primera vez, `~/Documents/DevicesForge/library/`). Cubase a veces dispara SaveIR/LoadIR dos veces; el segundo diálogo se ignora.
+
+Si cerrás el insert y lo volvés a abrir, Cubase instancia el plugin de cero: sin LoadIR (o sin reabrir el proyecto guardado) **IRLen = 0**. El estado del proyecto sí incluye la IR, pero solo si el insert sigue en el canal al guardar.
 
 ## Formato binario `.dfir`
 

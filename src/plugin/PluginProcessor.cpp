@@ -1,4 +1,5 @@
 #include "PluginProcessor.h"
+#include "FileDialog.h"
 #include "version.h"
 #include "public.sdk/source/vst/vstaudioprocessoralgo.h"
 
@@ -8,10 +9,13 @@
 
 #include "pluginterfaces/base/ibstream.h"
 #include "pluginterfaces/vst/ivstparameterchanges.h"
+#include "pluginterfaces/vst/ivstmessage.h"
 #include "public.sdk/source/vst/vstparameters.h"
 #include "base/source/fstreamer.h"
+#include "base/source/fstring.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstring>
 #include <sstream>
@@ -102,6 +106,10 @@ namespace Steinberg
                             case DevicesForge::PluginParamIDs::OUTPUT_GAIN:
                                 if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue) 
                                     paramOutputGain = static_cast<float>(value);
+                                break;
+                            case DevicesForge::PluginParamIDs::SEND:
+                                if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue)
+                                    paramSend = static_cast<float>(value);
                                 break;
                             case DevicesForge::PluginParamIDs::IR_SELECT:
                                 if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue) 
@@ -241,6 +249,7 @@ namespace Steinberg
             prevExportOn = exportOn;
 
             const float gainLinear = outputGainLinear(paramOutputGain);
+            const float sendLinear = outputGainLinear(paramSend);
 
             if (data.numInputs > 0) 
             {
@@ -335,7 +344,7 @@ namespace Steinberg
                     generator.renderTone(dest, data.numSamples, DevicesForge::CALIBRATE_TONE_HZ);
 
                 for (int32 i = 0; i < data.numSamples; ++i) 
-                    dest[i] *= gainLinear;
+                    dest[i] *= sendLinear;
 
                 for (int32 channel = 1; channel < numOutChannels; ++channel) 
                     std::memcpy(out[channel], dest, static_cast<size_t>(data.numSamples) * sizeof(float));
@@ -366,10 +375,13 @@ namespace Steinberg
 
             // Emulación: convolución con la IR seleccionada (si hay IR en memoria).
             // Sin IR el buffer queda intacto → passthrough.
-            convolver.setMix(paramMix);
-            const int32_t irIndex = static_cast<int32_t>(
-                paramIRSelect * static_cast<float>(DevicesForge::NUM_CAPTURE_LEVELS - 1) + 0.5f);
-            convolver.process(outPtrs, numChannels, data.numSamples, irIndex);
+            {
+                std::lock_guard<std::mutex> lock(irMutex);
+                convolver.setMix(paramMix);
+                const int32_t irIndex = static_cast<int32_t>(
+                    paramIRSelect * static_cast<float>(DevicesForge::NUM_CAPTURE_LEVELS - 1) + 0.5f);
+                convolver.process(outPtrs, numChannels, data.numSamples, irIndex);
+            }
 
             for (int32 channel = 0; channel < numChannels; ++channel) 
             {
@@ -417,8 +429,15 @@ namespace Steinberg
             {
                 std::vector<float> ir(static_cast<size_t>(irLength));
                 if (streamer.readFloatArray(ir.data(), irLength))
+                {
+                    std::lock_guard<std::mutex> lock(irMutex);
                     convolver.getIRManager().setLevelIR(0, ir, 0.0f);
+                }
             }
+
+            float savedSend = 0.5f;
+            if (streamer.readFloat(savedSend))
+                paramSend = savedSend;
 
             return kResultOk;
         }
@@ -434,15 +453,22 @@ namespace Steinberg
             streamer.writeFloat(paramSignalType);
             streamer.writeFloat(paramSignalDuration);
 
-            const DevicesForge::IRManager& irManager = convolver.getIRManager();
-            const float* ir = irManager.getIR(0);
-            const int32_t irLength = irManager.getIRLength(0);
-            const bool hasIR = ir != nullptr && irLength > 0 &&
-                               irLength <= DevicesForge::IR_STATE_MAX_SAMPLES;
+            std::vector<float> irCopy;
+            {
+                std::lock_guard<std::mutex> lock(irMutex);
+                const DevicesForge::IRManager& irManager = convolver.getIRManager();
+                const float* ir = irManager.getIR(0);
+                const int32_t irLength = irManager.getIRLength(0);
+                if (ir != nullptr && irLength > 0 &&
+                    irLength <= DevicesForge::IR_STATE_MAX_SAMPLES)
+                    irCopy.assign(ir, ir + irLength);
+            }
 
-            streamer.writeInt32(hasIR ? irLength : 0);
+            const bool hasIR = !irCopy.empty();
+            streamer.writeInt32(hasIR ? static_cast<int32>(irCopy.size()) : 0);
             if (hasIR)
-                streamer.writeFloatArray(ir, irLength);
+                streamer.writeFloatArray(irCopy.data(), static_cast<int32>(irCopy.size()));
+            streamer.writeFloat(paramSend);
 
             return kResultOk;
         }
@@ -546,8 +572,11 @@ namespace Steinberg
             if (ir.empty())
                 return;
 
-            convolver.getIRManager().clear();
-            convolver.getIRManager().setLevelIR(0, ir, 0.0f);
+            {
+                std::lock_guard<std::mutex> lock(irMutex);
+                convolver.getIRManager().clear();
+                convolver.getIRManager().setLevelIR(0, ir, 0.0f);
+            }
 
             DevicesForge::IRExporter::exportAllFormats(sessionDir, ir.data(),
                                                        static_cast<int32_t>(ir.size()), sampleRate);
@@ -557,12 +586,80 @@ namespace Steinberg
                 DevicesForge::IRExporter::sessionDirectory(sessionDir) + "/capture_log.txt", log.str());
         }
 
+        void DevicesForgeProcessor::saveIRToPath(const std::string& path)
+        {
+            std::vector<float> copy;
+            {
+                std::lock_guard<std::mutex> lock(irMutex);
+                const float* ir = convolver.getIRManager().getIR(0);
+                const int32_t length = convolver.getIRManager().getIRLength(0);
+                if (ir && length > 0)
+                    copy.assign(ir, ir + length);
+            }
+            if (copy.empty())
+                return;
+
+            const double sampleRate = processSetup.sampleRate > 0.0 ? processSetup.sampleRate
+                                                                    : DevicesForge::SAMPLE_RATE_DEFAULT;
+            DevicesForge::IRExporter::saveWavFloat32(path, copy.data(),
+                                                     static_cast<int32_t>(copy.size()), sampleRate);
+        }
+
+        void DevicesForgeProcessor::loadIRFromPath(const std::string& path)
+        {
+            std::vector<float> ir;
+            double sampleRate = DevicesForge::SAMPLE_RATE_DEFAULT;
+            if (!DevicesForge::IRExporter::loadWavFloat32(path, ir, sampleRate) || ir.empty())
+                return;
+
+            std::lock_guard<std::mutex> lock(irMutex);
+            convolver.getIRManager().clear();
+            convolver.getIRManager().setLevelIR(0, ir, 0.0f);
+        }
+
+        tresult PLUGIN_API DevicesForgeProcessor::notify(IMessage* message)
+        {
+            if (!message)
+                return AudioEffect::notify(message);
+
+            const FIDString id = message->getMessageID();
+            TChar pathW[1024] = {};
+            if (message->getAttributes()->getString("Path", pathW, sizeof(pathW)) != kResultOk)
+                return AudioEffect::notify(message);
+
+            String pathStr(pathW);
+            const std::string path = pathStr.text8() ? std::string(pathStr.text8()) : std::string();
+            if (path.empty())
+                return kResultFalse;
+
+            if (FIDStringsEqual(id, "DFSaveIR"))
+            {
+                saveIRToPath(path);
+                return kResultOk;
+            }
+            if (FIDStringsEqual(id, "DFLoadIR"))
+            {
+                loadIRFromPath(path);
+                return kResultOk;
+            }
+
+            return AudioEffect::notify(message);
+        }
+
         void DevicesForgeProcessor::exportCurrentIR(bool allFormats)
         {
-            const float* ir = convolver.getIRManager().getIR(0);
-            const int32_t length = convolver.getIRManager().getIRLength(0);
-            if (!ir || length <= 0)
+            std::vector<float> copy;
+            {
+                std::lock_guard<std::mutex> lock(irMutex);
+                const float* ir = convolver.getIRManager().getIR(0);
+                const int32_t length = convolver.getIRManager().getIRLength(0);
+                if (ir && length > 0)
+                    copy.assign(ir, ir + length);
+            }
+            if (copy.empty())
                 return;
+            const float* ir = copy.data();
+            const int32_t length = static_cast<int32_t>(copy.size());
 
             const double sampleRate = processSetup.sampleRate > 0.0 ? processSetup.sampleRate
                                                                     : DevicesForge::SAMPLE_RATE_DEFAULT;
@@ -603,6 +700,9 @@ namespace Steinberg
             parameters.addParameter(STR16("Mix"), STR16("%"), 100, 1.0,
                 ParameterInfo::kCanAutomate, DevicesForge::PluginParamIDs::MIX);
 
+            parameters.addParameter(STR16("Send"), STR16("dB"), 100, 0.5,
+                ParameterInfo::kCanAutomate, DevicesForge::PluginParamIDs::SEND);
+
             parameters.addParameter(STR16("Gain"), STR16("dB"), 100, 0.5,
                 ParameterInfo::kCanAutomate, DevicesForge::PluginParamIDs::OUTPUT_GAIN);
 
@@ -632,28 +732,11 @@ namespace Steinberg
             parameters.addParameter(STR16("Generate"), nullptr, 1, 0.0,
                 ParameterInfo::kCanAutomate, DevicesForge::PluginParamIDs::GENERATE);
 
-            parameters.addParameter(STR16("Cal"), nullptr, 1, 0.0,
-                ParameterInfo::kCanAutomate, DevicesForge::PluginParamIDs::CALIBRATE);
+            parameters.addParameter(STR16("SaveIR"), nullptr, 1, 0.0,
+                ParameterInfo::kCanAutomate, DevicesForge::PluginParamIDs::SAVE_IR);
 
-            auto* calSignalParam = new StringListParameter(STR16("CalSig"),
-                DevicesForge::PluginParamIDs::CALIBRATE_SIGNAL);
-            calSignalParam->appendString(STR16("1kHz"));
-            calSignalParam->appendString(STR16("Sweep"));
-            parameters.addParameter(calSignalParam);
-
-            parameters.addParameter(STR16("ClrLatest"), nullptr, 1, 1.0,
-                ParameterInfo::kCanAutomate, DevicesForge::PluginParamIDs::CLEAR_LATEST);
-
-            auto* exportFormatParam = new StringListParameter(STR16("ExportFmt"),
-                DevicesForge::PluginParamIDs::EXPORT_FORMAT);
-            exportFormatParam->appendString(STR16("WAV24"));
-            exportFormatParam->appendString(STR16("WAV32f"));
-            exportFormatParam->appendString(STR16("AIFF96"));
-            exportFormatParam->appendString(STR16("DFIR"));
-            parameters.addParameter(exportFormatParam);
-
-            parameters.addParameter(STR16("Export"), nullptr, 1, 0.0,
-                ParameterInfo::kCanAutomate, DevicesForge::PluginParamIDs::EXPORT);
+            parameters.addParameter(STR16("LoadIR"), nullptr, 1, 0.0,
+                ParameterInfo::kCanAutomate, DevicesForge::PluginParamIDs::LOAD_IR);
 
             // Medidor de entrada en dBFS: legible antes de disparar Generate.
             parameters.addParameter(new RangeParameter(STR16("InPeak"),
@@ -699,9 +782,76 @@ namespace Steinberg
             setParamNormalized(DevicesForge::PluginParamIDs::SIGNAL_TYPE, savedSignalType);
             setParamNormalized(DevicesForge::PluginParamIDs::SIGNAL_DURATION, savedDuration);
             setParamNormalized(DevicesForge::PluginParamIDs::GENERATE, 0.0);
-            setParamNormalized(DevicesForge::PluginParamIDs::CALIBRATE, 0.0);
+
+            int32 irLength = 0;
+            if (streamer.readInt32(irLength) && irLength > 0 &&
+                irLength <= DevicesForge::IR_STATE_MAX_SAMPLES)
+            {
+                float dummy = 0.0f;
+                for (int32 i = 0; i < irLength; ++i)
+                    streamer.readFloat(dummy);
+            }
+
+            float savedSend = 0.5f;
+            if (streamer.readFloat(savedSend))
+                setParamNormalized(DevicesForge::PluginParamIDs::SEND, savedSend);
 
             return kResultOk;
+        }
+
+        void DevicesForgeController::sendIRPathMessage(const char* messageId, const std::string& path)
+        {
+            IPtr<IMessage> msg = owned(allocateMessage());
+            if (!msg)
+                return;
+            msg->setMessageID(messageId);
+            String pathStr(path.c_str());
+            msg->getAttributes()->setString("Path", pathStr);
+            sendMessage(msg);
+        }
+
+        void DevicesForgeController::runFileDialogOnce(ParamID tag)
+        {
+            if (fileDialogBusy)
+                return;
+
+            const double now = std::chrono::duration<double>(
+                std::chrono::steady_clock::now().time_since_epoch()).count();
+            if (now < fileDialogIgnoreUntil)
+                return;
+
+            fileDialogBusy = true;
+            std::string path;
+            if (tag == DevicesForge::PluginParamIDs::SAVE_IR)
+            {
+                if (DevicesForge::chooseSaveIRPath(path))
+                    sendIRPathMessage("DFSaveIR", path);
+            }
+            else if (tag == DevicesForge::PluginParamIDs::LOAD_IR)
+            {
+                if (DevicesForge::chooseOpenIRPath(path))
+                    sendIRPathMessage("DFLoadIR", path);
+            }
+            fileDialogBusy = false;
+            fileDialogIgnoreUntil = std::chrono::duration<double>(
+                std::chrono::steady_clock::now().time_since_epoch()).count() + 0.75;
+            EditController::setParamNormalized(tag, 0.0);
+        }
+
+        tresult PLUGIN_API DevicesForgeController::setParamNormalized(ParamID tag, ParamValue value)
+        {
+            const tresult result = EditController::setParamNormalized(tag, value);
+            if (result != kResultOk)
+                return result;
+
+            if (value < 0.5)
+                return result;
+
+            if (tag == DevicesForge::PluginParamIDs::SAVE_IR ||
+                tag == DevicesForge::PluginParamIDs::LOAD_IR)
+                runFileDialogOnce(tag);
+
+            return result;
         }
     } //  Vst
 } //  Steinberg
