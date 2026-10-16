@@ -19,14 +19,9 @@ add_executable(DevicesForgeTests
 
 target_link_libraries(DevicesForgeTests
     PRIVATE
-        DevicesForgeDSP
+        dfcore
+        dfmeasure
         GTest::gtest_main
-)
-
-# Include project headers
-target_include_directories(DevicesForgeTests
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/src
 )
 
 # ============================================================================

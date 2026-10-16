@@ -32,12 +32,13 @@ target_include_directories(DevicesForgeHost
     PRIVATE
         ${VST3SDK_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/products/capturer-vst
 )
 
 target_link_libraries(DevicesForgeHost
     PRIVATE
         sdk_hosting
+        dfmeasure
 )
 
 # Platform settings

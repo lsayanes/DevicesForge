@@ -231,7 +231,8 @@ Objetivo: **usar la IR capturada dentro del plugin** y comparar con el dispositi
 - [ ] Carga de IR desde disco (`LOAD IR` / `.dfir` o WAV) para reutilizar capturas sin re-generar
 
 ### Fase 4: Producto y polish
-- [ ] Editor gráfico (VSTGUI): Generate, medidores, preview de IR
+- [x] Editor gráfico (VSTGUI) mínimo: Send, Generate, InPeak, Duration, Mix, Gain, IRLen, Save/Load
+- [ ] Preview de IR y polish visual
 - [ ] Presets por tipo de dispositivo (consola, preamp, cadena insert)
 - [ ] Automatización de parámetros clave
 - [ ] QA: validator, tests de regresión, checklist de hosts (Cubase AI+)

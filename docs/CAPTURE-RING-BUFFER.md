@@ -9,7 +9,7 @@ Grabar en memoria la señal que **entra** al plugin (retorno del dispositivo ví
 - **Pre-trigger**: audio ya presente en el buffer **antes** del disparo (por defecto **100 ms**).
 - **Post-trigger**: audio **después** del disparo hasta completar la duración configurada.
 
-El disparo es **automático** en el mismo instante en que activás **Generate** (flanco Off → On), alineado con el arranque del [`SignalGenerator`](../src/dsp/SignalGenerator.cpp).
+El disparo es **automático** en el mismo instante en que activás **Generate** (flanco Off → On), alineado con el arranque del [`SignalGenerator`](../libs/dfmeasure/SignalGenerator.cpp).
 
 La captura queda en RAM (**una sola IR mono**, promedio L/R). El ring interno sí guarda L y R por separado, pero la deconvolución y `IRManager` trabajan un único buffer. Un loop estéreo (dos canales de mixer → Stereo In) **no** genera un IR por canal: ver la aclaración en [`CAPTURE-WORKFLOW.md`](CAPTURE-WORKFLOW.md). Al completarse, el plugin ejecuta deconvolución + ventaneo + normalización y **exporta** archivos (ver [`WINDOWING-NORMALIZATION.md`](WINDOWING-NORMALIZATION.md), [`EXPORT-FORMATS.md`](EXPORT-FORMATS.md)).
 

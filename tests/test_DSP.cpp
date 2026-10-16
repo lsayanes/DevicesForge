@@ -6,14 +6,14 @@
 #include <memory>
 #include <vector>
 
-#include "dsp/FFTProcessor.h"
-#include "dsp/IRManager.h"
-#include "dsp/DynamicConvolver.h"
-#include "dsp/SignalGenerator.h"
-#include "dsp/RingCaptureBuffer.h"
-#include "dsp/IRPostProcessor.h"
-#include "dsp/SweepDeconvolver.h"
-#include "dsp/IRExporter.h"
+#include "FFTProcessor.h"
+#include "IRManager.h"
+#include "DynamicConvolver.h"
+#include "SignalGenerator.h"
+#include "RingCaptureBuffer.h"
+#include "IRPostProcessor.h"
+#include "SweepDeconvolver.h"
+#include "IRExporter.h"
 
 using namespace DevicesForge;
 
@@ -409,7 +409,7 @@ TEST_F(SignalGeneratorTest, MLSIsBipolarWithPeriod) {
 
 TEST_F(SignalGeneratorTest, ToneIsOneKilohertz) {
     std::vector<float> block(48000, 0.0f);
-    gen->renderTone(block.data(), 48000, CALIBRATE_TONE_HZ);
+    gen->renderTone(block.data(), 48000, 1000.0f);
 
     int32_t crossings = 0;
     for (int32_t i = 1; i < 48000; ++i) {

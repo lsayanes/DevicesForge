@@ -1,0 +1,62 @@
+#pragma once
+
+#include <cstdint>
+#include <vector>
+
+#include "DFMeasureConstants.h"
+
+namespace DevicesForge
+{
+
+	class SignalGenerator
+	{
+	public:
+		SignalGenerator() = default;
+		~SignalGenerator() = default;
+
+		void prepare(double sampleRate);
+		void reset();
+
+		void setType(SignalType type);
+		void setDuration(float seconds);
+
+		void start();
+		/** Reproduce la referencia en bucle (calibración). No dispara captura. */
+		void startLoop();
+		void stop();
+		bool isPlaying() const { return playing; }
+		bool isLooping() const { return looping; }
+
+		void render(float* out, int32_t numSamples);
+		/** Seno continuo (fase persistente). Independiente de start()/referencia. */
+		void renderTone(float* out, int32_t numSamples, float frequencyHz);
+		void resetTonePhase();
+
+		const float* getReference() const;
+		int32_t getReferenceLength() const { return referenceLength; }
+
+		SignalType getType() const { return type; }
+		float getDuration() const { return durationSeconds; }
+		double getSampleRate() const { return sampleRate; }
+
+	private:
+		void buildReference();
+		void generateSweep(int32_t numSamples);
+		void generateDirac();
+		void generatePink(int32_t numSamples);
+		void generateMLS(int32_t numSamples);
+		void applyFade(int32_t numSamples, float fadeSeconds);
+
+		double sampleRate { SAMPLE_RATE_DEFAULT };
+		SignalType type { SignalType::SineSweep };
+		float durationSeconds { SIGNAL_DURATION_DEFAULT };
+
+		std::vector<float> reference;
+		int32_t referenceLength { 0 };
+		int32_t playIndex { 0 };
+		bool playing { false };
+		bool looping { false };
+		double tonePhase { 0.0 };
+	};
+
+} // DevicesForge

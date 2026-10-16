@@ -19,7 +19,7 @@
 #include "public.sdk/source/common/memorystream.h"
 #include "base/source/fstring.h"
 
-#include "plugin/DevicesForge.h"
+#include "DevicesForge.h"
 
 using namespace Steinberg;
 using namespace Steinberg::Vst;

@@ -72,9 +72,10 @@ else()
 endif()
 
 # ============================================================================
-# Plugin Target
+# Librerias comunes y productos
 # ============================================================================
-add_subdirectory(src)
+add_subdirectory(libs)
+add_subdirectory(products/capturer-vst)
 
 # ============================================================================
 # Test Host

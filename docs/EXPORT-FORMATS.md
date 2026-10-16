@@ -68,7 +68,7 @@ Offset 0:  magic "DFIR"
            samples: numSamples × float32 LE
 ```
 
-Ver `IRBinaryHeader` en [`IRExporter.h`](../src/dsp/IRExporter.h).
+Ver `IRBinaryHeader` en [`IRExporter.h`](../libs/dfcore/IRExporter.h).
 
 ## Prueba tangible
 

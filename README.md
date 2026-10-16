@@ -53,7 +53,7 @@ El repositorio compila un VST3 válido (pasa el **validator** del VST3 SDK). Par
 | `SweepDeconvolver` + `IRPostProcessor` | Deconvolución FFT al completar captura; Hanning + peak norm → `IRManager` |
 | `IRExporter` | Auto-export a `~/Documents/DevicesForge/exports/latest/`; archivar con **SaveIR** / **LoadIR** |
 | `ONNXInference` | Enlazado si hay ONNX Runtime; **sin** carga de modelo en runtime |
-| Editor gráfico (VSTGUI) | **No** |
+| Editor gráfico (VSTGUI) | **Sí** (mínimo: Send, Generate, InPeak, Mix, Gain, Save/Load) |
 
 Para probar hoy: **Generate** con retorno cableado → revisar archivos en [`docs/EXPORT-FORMATS.md`](docs/EXPORT-FORMATS.md). Ver [Probar en el DAW](#probar-en-el-daw).
 
@@ -63,10 +63,13 @@ Para probar hoy: **Generate** con retorno cableado → revisar archivos en [`doc
 
 ```
 DevicesForge/
-├── src/
-│   ├── plugin/          # VST3: Processor, Factory, CIDs, DevicesForge.h
-│   ├── dsp/             # FFTProcessor, IRManager, DynamicConvolver
-│   └── ai/              # ONNXInference (opcional, HAS_ONNX_RUNTIME)
+├── libs/                # Código común reutilizable por cualquier producto
+│   ├── dfcore/          # Sin VST: FFT, convolución, IR/WAV I/O, DFConstants.h
+│   ├── dfmeasure/       # Sin VST: barrido, captura, deconvolución, post-proceso
+│   │   └── ai/          # ONNXInference (opcional, HAS_ONNX_RUNTIME)
+│   └── dfvst/           # Helpers de plugin: diálogos nativos de archivo
+├── products/
+│   └── capturer-vst/    # VST3 de captura actual (DevicesForge.vst3)
 ├── host/                # Host CLI mínimo (carga .vst3, genera WAV de prueba)
 ├── tests/               # Google Test — DSP aislado
 ├── docs/                # Especificación y guías
@@ -80,8 +83,10 @@ DevicesForge/
 
 | Target | Descripción |
 |--------|-------------|
-| `DevicesForge` | Plugin VST3 |
-| `DevicesForgeDSP` | Librería estática DSP (tests) |
+| `DevicesForge` | Plugin VST3 de captura (`products/capturer-vst`) |
+| `dfcore` | Librería estática: FFT, convolución, IR/WAV I/O |
+| `dfmeasure` | Librería estática: medición y deconvolución (usa `dfcore`) |
+| `dfvst` | Librería estática: diálogos de archivo (usa `dfcore`) |
 | `DevicesForgeHost` | Host de línea de comandos |
 | `DevicesForgeTests` | Tests (`ctest`) |
 
@@ -157,7 +162,7 @@ Si ONNX Runtime no está en `external/onnxruntime`, el proyecto **compila igual*
 ```
 
 **Cubase:** Studio → VST Plug-in Manager → engranaje → **Rescan All**.  
-Buscar **DevicesForge** (subcategoría VST3 actual: `"Fx"` — puede aparecer en *Otros*; ver [`PluginFactory.cpp`](src/plugin/PluginFactory.cpp) y constantes `kFx|…` en el SDK).
+Buscar **DevicesForge** (subcategoría VST3 actual: `"Fx"` — puede aparecer en *Otros*; ver [`PluginFactory.cpp`](products/capturer-vst/PluginFactory.cpp) y constantes `kFx|…` en el SDK).
 
 ---
 
@@ -217,7 +222,7 @@ Genera `test_output.wav` con un seno de prueba (útil para humo, no sustituye el
 | 1012 | Version | Solo lectura: build (`FULL_VERSION_STR` en `version.h`) |
 | 1013 | IRLen | Solo lectura: largo de la IR en memoria (**0 ms = sin IR**, passthrough) |
 
-Constantes en [`src/plugin/DevicesForge.h`](src/plugin/DevicesForge.h).
+Constantes en [`products/capturer-vst/DevicesForge.h`](products/capturer-vst/DevicesForge.h).
 
 ---
 
@@ -236,7 +241,7 @@ En runtime el plugin usa `processSetup.sampleRate` del host al activar la pista.
 
 ## Categoría del plugin en el host
 
-La subcategoría VST3 se define en `src/plugin/PluginFactory.cpp` (`subCategories` en `DEF_CLASS2`).  
+La subcategoría VST3 se define en `products/capturer-vst/PluginFactory.cpp` (`subCategories` en `DEF_CLASS2`).  
 Valor genérico `"Fx"` suele listarse como *Otros*. Para ubicarlo mejor (p. ej. **Channel Strip** o **Reverb**), usar las constantes de `pluginterfaces/vst/ivstaudioprocessor.h` (`kFxChannelStrip`, `kFxReverb`, etc.).
 
 ---
@@ -267,4 +272,4 @@ Checklist completo en [`SPEC.md`](SPEC.md) §10.
 
 ## Autor
 
-**Leandro Sayanes** — contacto en [`src/plugin/version.h`](src/plugin/version.h).
+**Leandro Sayanes** — contacto en [`products/capturer-vst/version.h`](products/capturer-vst/version.h).

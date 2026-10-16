@@ -27,7 +27,7 @@ Plan de implementación para **limpiar IRs capturadas** con una red neuronal des
 
 Infraestructura ya presente en el repo:
 
-- [`src/ai/ONNXInference.cpp`](../src/ai/ONNXInference.cpp) — sesión ORT, `denoiseIR()` (hoy asume waveform 1D; hay que adaptar o añadir capa STFT).
+- [`libs/dfmeasure/ai/ONNXInference.cpp`](../libs/dfmeasure/ai/ONNXInference.cpp) — sesión ORT, `denoiseIR()` (hoy asume waveform 1D; hay que adaptar o añadir capa STFT).
 - Parámetro VST **AI** (`AI_DENOISE`, id 1004) — leído en el processor, **aún no** aplicado tras la captura.
 - Build opcional `HAS_ONNX_RUNTIME` — ver [`docs/DEPENDENCIES.md`](DEPENDENCIES.md).
 
@@ -79,7 +79,7 @@ Nombre de archivo sugerido: `ir_denoise_v1.onnx`.
 
 Arquitectura recomendada en entrenamiento: **U-Net 2D** sobre el mapa tiempo–frecuencia (profundidad moderada, ~1–5 M parámetros para CPU en tiempo razonable post-captura).
 
-Nombres de I/O deben coincidir con [`ONNXInference`](../src/ai/ONNXInference.cpp) tras la refactor (sustituir los placeholders `"input"` / `"output"` actuales).
+Nombres de I/O deben coincidir con [`ONNXInference`](../libs/dfmeasure/ai/ONNXInference.cpp) tras la refactor (sustituir los placeholders `"input"` / `"output"` actuales).
 
 **Padding en inferencia:** la U-Net hace dos poolings en el eje tiempo; antes de llamar a ONNX, rellenar `T` hasta un **múltiplo de 4** (función `pad_time_bins` en [`ml/df_stft.py`](../ml/df_stft.py)). Recortar la salida al `T` original.
 
@@ -92,7 +92,7 @@ La IR puede tener **~60k+ samples**. El espectrograma completo tiene `T ≈ ceil
 3. **Crossfade** en la zona solapada (ventana Hann en el eje T del espectrograma).
 4. Reconstruir con **ISTFT + overlap-add** a waveform.
 
-Documentar constantes en [`DevicesForge.h`](../src/plugin/DevicesForge.h) cuando se implemente (`AI_STFT_NFFT`, `AI_STFT_HOP`, etc.).
+Documentar constantes en [`DevicesForge.h`](../products/capturer-vst/DevicesForge.h) cuando se implemente (`AI_STFT_NFFT`, `AI_STFT_HOP`, etc.).
 
 ## Ubicación del modelo
 

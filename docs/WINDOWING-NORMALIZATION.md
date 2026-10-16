@@ -56,7 +56,7 @@ Ajusta la **escala** de la IR para que distintas capturas sean comparables y el 
 1. Buscar `peak = max |x[n]|`.
 2. Si `peak > 0`, multiplicar toda la IR por `targetPeak / peak` (por defecto `targetPeak = 1.0`).
 
-Constantes compartidas en [`DevicesForge.h`](../src/plugin/DevicesForge.h): `kPi` / `kPiF`, `kTwoPi` / `kTwoPiF`, `IR_NORMALIZE_PEAK_TARGET`, etc.
+Constantes compartidas en [`DFConstants.h`](../libs/dfcore/DFConstants.h) y [`DFMeasureConstants.h`](../libs/dfmeasure/DFMeasureConstants.h): `kPi` / `kPiF`, `kTwoPi` / `kTwoPiF`, `IR_NORMALIZE_PEAK_TARGET`, etc.
 
 Alternativas futuras (no implementadas): normalización por energía/RMS, objetivo en dBFS distinto de 0.
 

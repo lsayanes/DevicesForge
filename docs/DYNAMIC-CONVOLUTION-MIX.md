@@ -17,7 +17,7 @@ Sin convolución en el plugin, la IR solo se **exporta** a disco; no escuchás l
 
 ## Qué es `DynamicConvolver`
 
-Clase en [`src/dsp/DynamicConvolver.cpp`](../src/dsp/DynamicConvolver.cpp). Implementa **convolución en bloques** con FFT (overlap-add), no un FIR sample-a-sample gigante en CPU.
+Clase en [`libs/dfcore/DynamicConvolver.cpp`](../libs/dfcore/DynamicConvolver.cpp). Implementa **convolución en bloques** con FFT (overlap-add), no un FIR sample-a-sample gigante en CPU.
 
 | Pieza | Rol |
 |-------|-----|
@@ -52,7 +52,7 @@ Si no hay IR cargada, `processChannel` **no modifica** el buffer (early return).
 
 Definido en el controller como **porcentaje** (0–100 %). En el processor se guarda normalizado `paramMix` ∈ [0, 1].
 
-En el código del convolver ([`DynamicConvolver::processChannel`](../src/dsp/DynamicConvolver.cpp)):
+En el código del convolver ([`DynamicConvolver::processChannel`](../libs/dfcore/DynamicConvolver.cpp)):
 
 ```text
 salida = entrada × (1 − mix) + convolución × mix
