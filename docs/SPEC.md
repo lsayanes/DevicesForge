@@ -1,6 +1,6 @@
 # DevicesForge - Especificación (resumen técnico)
 
-**DevicesForge** es un plugin VST3 que captura y emula la "huella digital" de **dispositivos de audio físicos** (como un canal de consola analógica, un preamplificador o una cadena concreta de procesado) usando Dynamic Convolution y, opcionalmente, procesamiento asistido por IA.
+**DevicesForge** es un plugin VST3 que captura y emula la "huella digital" de **dispositivos de audio físicos** (como un canal de consola analógica, un preamplificador o una cadena concreta de procesado) usando Dynamic Convolution.
 
 Documento raíz más completo: [`../SPEC.md`](../SPEC.md).
 
@@ -9,7 +9,6 @@ Documento raíz más completo: [`../SPEC.md`](../SPEC.md).
 - Capturar curva de EQ y respuesta de fase del dispositivo bajo medición
 - Generar IRs de alta precisión (24-bit / 48 kHz)
 - Emular el dispositivo en el DAW vía convolución dinámica
-- (Fase 5, opcional) Denoise de IR con IA local si las capturas lo justifican
 
 ## 9. Roadmap (alineado con SPEC raíz)
 
@@ -34,15 +33,10 @@ Ver [`DYNAMIC-CONVOLUTION-MIX.md`](DYNAMIC-CONVOLUTION-MIX.md).
 - [ ] PluginEditor (VSTGUI)
 - [ ] Presets, automatización, QA en DAW
 
-### Fase 5: IA opcional (congelada)
-- Laboratorio: [`AI-PHASE3.md`](AI-PHASE3.md), [`AI-PHASE3-GUIA.md`](AI-PHASE3-GUIA.md), carpeta [`../ml/`](../ml/)
-- Integración C++ y param **AI** — solo tras go/no-go en Fase 3
-
 ## 10. Referencias
 
 - **VST3 SDK**: https://github.com/steinbergmedia/vst3sdk
 - **pffft**: https://github.com/marton78/pffft
-- **ONNX Runtime**: https://onnxruntime.ai (Fase 5)
 - **Sweep deconvolution**: Farina, A. (2000)
 
 ---

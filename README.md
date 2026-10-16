@@ -1,6 +1,6 @@
 # DevicesForge
 
-Plugin **VST3** para capturar y emular la huella digital (respuesta al impulso) de **dispositivos de audio** —mesas analógicas, preamps, cadenas de insert, etc.— usando **convolución dinámica** y un motor de IA local basado en **ONNX Runtime**.
+Plugin **VST3** para capturar y emular la huella digital (respuesta al impulso) de **dispositivos de audio** —mesas analógicas, preamps, cadenas de insert, etc.— usando **convolución dinámica**.
 
 | | |
 |---|---|
@@ -8,7 +8,7 @@ Plugin **VST3** para capturar y emular la huella digital (respuesta al impulso) 
 | **Formato** | VST3 (estéreo in / estéreo out) |
 | **Sample rate de diseño** | 48 kHz (`SAMPLE_RATE_DEFAULT`) |
 | **Plataformas** | macOS (Apple Silicon / Intel), Windows (objetivo) |
-| **Licencias de terceros** | VST3 SDK (MIT), pffft (BSD), ONNX Runtime (MIT), Google Test (BSD) |
+| **Licencias de terceros** | VST3 SDK (MIT), pffft (BSD), Google Test (BSD) |
 
 Documentación detallada en [`docs/`](docs/):
 
@@ -19,8 +19,6 @@ Documentación detallada en [`docs/`](docs/):
 - [`docs/WINDOWING-NORMALIZATION.md`](docs/WINDOWING-NORMALIZATION.md) — ventaneo Hanning/Kaiser y normalización de pico de IR
 - [`docs/DYNAMIC-CONVOLUTION-MIX.md`](docs/DYNAMIC-CONVOLUTION-MIX.md) — DynamicConvolver, Mix dry/wet e integración prevista en `process()`
 - [`docs/EXPORT-FORMATS.md`](docs/EXPORT-FORMATS.md) — WAV / AIFF / DFIR y carpeta `exports/latest`
-- [`docs/AI-PHASE3-GUIA.md`](docs/AI-PHASE3-GUIA.md) — Fase 3 IA: guía práctica (laboratorio Python)
-- [`docs/AI-PHASE3.md`](docs/AI-PHASE3.md) — Fase 3: spec técnica STFT + ONNX; scripts en [`ml/`](ml/)
 
 ---
 
@@ -32,10 +30,9 @@ DevicesForge está pensado para:
 2. **Capturar** la respuesta del dispositivo bajo prueba (p. ej. un canal de consola) a varios niveles (−24, −12, 0, +6 dB).
 3. **Procesar** IRs (deconvolución, ventaneo, export WAV).
 4. **Reproducir** audio con **convolución dinámica** (selección e interpolación de IR según nivel de entrada).
-5. **(Opcional, más adelante)** Refinar IRs ruidosas con IA local — ver Fase 5 en el roadmap.
 
 ```
-Generator → Capture → IR multi-nivel → DynamicConvolver (+ ONNX opcional) → salida
+Generator → Capture → IR multi-nivel → DynamicConvolver → salida
 ```
 
 ---
@@ -46,13 +43,12 @@ El repositorio compila un VST3 válido (pasa el **validator** del VST3 SDK). Par
 
 | Área | Estado |
 |------|--------|
-| VST3 processor / controller, parámetros (Mix, Gain, IR, AI, Signal, Duration, Generate) | **Gain**, **Generate**, **Mix** e **IR** afectan el audio; AI se lee pero no procesa |
+| VST3 processor / controller, parámetros (Mix, Gain, IR, Signal, Duration, Generate) | **Gain**, **Generate**, **Mix** e **IR** afectan el audio |
 | `FFTProcessor`, `IRManager`, `DynamicConvolver` | Convolución particionada (overlap-save) **cableada en `process()`**: la pista suena a través de la IR capturada |
 | `SignalGenerator` | Sweep log, Dirac, pink noise, MLS; cableado a `process()` |
 | `RingCaptureBuffer` | Ring estéreo + captura mono; **disparo automático** al activar Generate |
 | `SweepDeconvolver` + `IRPostProcessor` | Deconvolución FFT al completar captura; Hanning + peak norm → `IRManager` |
 | `IRExporter` | Auto-export a `~/Documents/DevicesForge/exports/latest/`; archivar con **SaveIR** / **LoadIR** |
-| `ONNXInference` | Enlazado si hay ONNX Runtime; **sin** carga de modelo en runtime |
 | Editor gráfico (VSTGUI) | **Sí** (mínimo: Send, Generate, InPeak, Mix, Gain, Save/Load) |
 
 Para probar hoy: **Generate** con retorno cableado → revisar archivos en [`docs/EXPORT-FORMATS.md`](docs/EXPORT-FORMATS.md). Ver [Probar en el DAW](#probar-en-el-daw).
@@ -66,7 +62,6 @@ DevicesForge/
 ├── libs/                # Código común reutilizable por cualquier producto
 │   ├── dfcore/          # Sin VST: FFT, convolución, IR/WAV I/O, DFConstants.h
 │   ├── dfmeasure/       # Sin VST: barrido, captura, deconvolución, post-proceso
-│   │   └── ai/          # ONNXInference (opcional, HAS_ONNX_RUNTIME)
 │   └── dfvst/           # Helpers de plugin: diálogos nativos de archivo
 ├── products/
 │   └── capturer-vst/    # VST3 de captura actual (DevicesForge.vst3)
@@ -74,7 +69,7 @@ DevicesForge/
 ├── tests/               # Google Test — DSP aislado
 ├── docs/                # Especificación y guías
 ├── scripts/             # install-deps.sh / .bat
-├── external/            # vst3sdk, onnxruntime (no versionados; ver install-deps)
+├── external/            # vst3sdk (no versionado; ver install-deps)
 ├── build.sh             # Configura CMake y compila
 └── cpvst.sh             # Copia DevicesForge.vst3 a ~/Library/.../VST3
 ```
@@ -97,7 +92,7 @@ DevicesForge/
 - **CMake** ≥ 3.19  
 - **C++17** (Xcode CLT en macOS, MSVC 2019+ en Windows)  
 - **Git** (FetchContent: pffft, Google Test)  
-- **VST3 SDK** y **ONNX Runtime** en `external/` (script de instalación)
+- **VST3 SDK** en `external/` (script de instalación)
 
 Detalle: [`docs/DEPENDENCIES.md`](docs/DEPENDENCIES.md).
 
@@ -112,7 +107,7 @@ chmod +x scripts/install-deps.sh
 ./scripts/install-deps.sh
 ```
 
-Instala CMake/Git si hace falta, clona el VST3 SDK y descarga ONNX Runtime 1.24.x en `external/`.
+Instala CMake/Git si hace falta y clona el VST3 SDK en `external/`.
 
 ### Windows
 
@@ -147,8 +142,6 @@ cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build . --parallel
 ctest --output-on-failure   # opcional
 ```
-
-Si ONNX Runtime no está en `external/onnxruntime`, el proyecto **compila igual** pero define `HAS_ONNX_RUNTIME` solo cuando encuentra headers y librería.
 
 ---
 
@@ -207,7 +200,6 @@ Genera `test_output.wav` con un seno de prueba (útil para humo, no sustituye el
 | 1003 | Gain | −12 … +12 dB: volumen de la **emulación** (después del Mix) |
 | 1016 | Send | −12 … +12 dB: nivel del **sweep** hacia el dispositivo (solo Generate) |
 | 1001 | IR | Selección de IR 0–3 (multi-nivel) |
-| 1004 | AI | Denoise IA (on/off) |
 | 1005 | Signal | Sweep / Dirac / Pink / MLS (**activo** con Generate) |
 | 1006 | Duration | 0.5–5.0 s (Dirac ignora este valor) |
 | 1007 | Generate | Off→On dispara sweep + captura; **vuelve a Off** al terminar el sweep; apaga Cal |
@@ -255,7 +247,6 @@ Checklist completo en [`SPEC.md`](SPEC.md) §10.
 | 1–2 | Hecho | Captura, deconvolución, export, Cubase |
 | **3** | **Ahora** | **Convolución en el plugin**, A/B con hardware, validar el concepto |
 | 4 | Después | UI, presets, automatización, QA |
-| 5 | Opcional | IA / denoise — [`docs/AI-PHASE3.md`](docs/AI-PHASE3.md) y `ml/` congelados hasta decidir |
 
 **Hecho:** `DynamicConvolver` + **Mix** + **IR Select** cableados en `process()`. **Próximo paso:** pruebas A/B en estudio (hardware vs emulación) y documentar resultados.
 
@@ -265,7 +256,6 @@ Checklist completo en [`SPEC.md`](SPEC.md) §10.
 
 - [VST3 SDK](https://github.com/steinbergmedia/vst3sdk)  
 - [pffft](https://github.com/marton78/pffft)  
-- [ONNX Runtime](https://onnxruntime.ai)  
 - Deconvolución por sweep: Farina, A. (2000)
 
 ---

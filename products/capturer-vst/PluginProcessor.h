@@ -10,10 +10,6 @@
 #include "SignalGenerator.h"
 #include "RingCaptureBuffer.h"
 
-#ifdef HAS_ONNX_RUNTIME
-#include "ai/ONNXInference.h"
-#endif
-
 #include <mutex>
 #include <string>
 
@@ -44,19 +40,12 @@ namespace Steinberg
             DevicesForge::IRManager irManager;
             DevicesForge::SignalGenerator generator;
             DevicesForge::RingCaptureBuffer captureBuffer;
-            
-            #ifdef HAS_ONNX_RUNTIME
-            DevicesForge::ONNXInference aiEngine;
-            #endif
 
             float paramMix = 1.0f;
             // 0.5 normalizado = 0 dB. Debe coincidir con el default del controller.
             float paramOutputGain = 0.5f;
             float paramSend = 0.5f;
             float paramIRSelect = 0.0f;
-#if defined(HAS_ONNX_RUNTIME)
-            float paramAIDenoise = 0.0f;
-#endif
             float paramSignalType = 0.0f;
             float paramSignalDuration = DevicesForge::signalDurationNormalizedDefault();
             float paramGenerate = 0.0f;

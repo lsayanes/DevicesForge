@@ -441,8 +441,7 @@ fft.inverse(spectrum, output, 4096);
 ### Relación con documentos existentes
 
 - `WINDOWING-NORMALIZATION.md`: Documenta el windowing que se aplica **después** de usar FFTProcessor en el pipeline de deconvolución.
-- `SPEC.md` sección 4.4: Menciona FFTProcessor como "Wrapper de pffft".
-- `AI-PHASE3.md`: Planifica reutilizar FFTProcessor para STFT en el pipeline de denoising con IA.
+- `SPEC.md`: Menciona FFTProcessor como "Wrapper de pffft".
 
 ---
 

@@ -97,10 +97,6 @@ if [[ ! -f "$WORKDIR/external/vst3sdk/CMakeLists.txt" ]]; then
     exit 1
 fi
 
-if [[ ! -d "$WORKDIR/external/onnxruntime/include" ]]; then
-    echo "Aviso: ONNX Runtime no encontrado — las features de IA se deshabilitan."
-fi
-
 # ============================================================================
 # Configure
 # ============================================================================

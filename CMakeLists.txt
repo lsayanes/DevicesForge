@@ -8,7 +8,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Paths
 # ============================================================================
 set(VST3SDK_SOURCE_DIR "${CMAKE_SOURCE_DIR}/external/vst3sdk" CACHE PATH "Path to VST3 SDK")
-set(ONNXRUNTIME_ROOTDIR "${CMAKE_SOURCE_DIR}/external/onnxruntime" CACHE PATH "Path to ONNX Runtime")
 
 # ============================================================================
 # VST3 SDK
@@ -30,46 +29,6 @@ FetchContent_Declare(pffft
     GIT_TAG master
 )
 FetchContent_MakeAvailable(pffft)
-
-# ============================================================================
-# AI Features (ONNX Runtime) - Optional
-# ============================================================================
-option(BUILD_AI_FEATURES "Build with AI/ONNX Runtime support" OFF)
-
-if(BUILD_AI_FEATURES)
-    if(EXISTS "${ONNXRUNTIME_ROOTDIR}/include")
-        message(STATUS "ONNX Runtime found at ${ONNXRUNTIME_ROOTDIR}")
-        set(ONNXRUNTIME_INCLUDE_DIR "${ONNXRUNTIME_ROOTDIR}/include")
-        
-        # Find library
-        if(APPLE)
-            find_library(ONNXRUNTIME_LIB onnxruntime
-                         PATHS "${ONNXRUNTIME_ROOTDIR}/lib"
-                         NO_DEFAULT_PATH)
-        elseif(WIN32)
-            find_library(ONNXRUNTIME_LIB onnxruntime
-                         PATHS "${ONNXRUNTIME_ROOTDIR}/lib"
-                         NO_DEFAULT_PATH)
-        endif()
-        
-        if(ONNXRUNTIME_LIB)
-            message(STATUS "ONNX Runtime library: ${ONNXRUNTIME_LIB}")
-        else()
-            message(WARNING "ONNX Runtime library not found - AI features disabled")
-            set(ONNXRUNTIME_INCLUDE_DIR "")
-            set(ONNXRUNTIME_LIB "")
-        endif()
-    else()
-        message(WARNING "ONNX Runtime not found at ${ONNXRUNTIME_ROOTDIR}\n"
-                        "AI features will be disabled")
-        set(ONNXRUNTIME_INCLUDE_DIR "")
-        set(ONNXRUNTIME_LIB "")
-    endif()
-else()
-    message(STATUS "AI features disabled (BUILD_AI_FEATURES=OFF)")
-    set(ONNXRUNTIME_INCLUDE_DIR "")
-    set(ONNXRUNTIME_LIB "")
-endif()
 
 # ============================================================================
 # Librerias comunes y productos

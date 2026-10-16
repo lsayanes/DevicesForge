@@ -154,7 +154,6 @@ Para saber si hay IR cargada está el parámetro de solo lectura **IRLen**:
 | Pipeline captura → IR | [`CAPTURE-RING-BUFFER.md`](CAPTURE-RING-BUFFER.md), [`WINDOWING-NORMALIZATION.md`](WINDOWING-NORMALIZATION.md) |
 | Export WAV / cargar archivos | [`EXPORT-FORMATS.md`](EXPORT-FORMATS.md) |
 | Roadmap Fase 3 | [`SPEC.md`](../SPEC.md) §10 |
-| IA (opcional, no necesaria para convolver) | [`AI-PHASE3.md`](AI-PHASE3.md) |
 
 ---
 

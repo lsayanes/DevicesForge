@@ -222,7 +222,7 @@ Estructura de archivos:
 **Solución:** Verificar cableado, aumentar nivel de sweep, reducir ruido ambiental
 
 ### Problema: IR muy ruidosa
-**Solución:** Usar AI Denoise en el plugin, o promediar múltiples capturas
+**Solución:** Promediar varias capturas y subir el nivel del barrido sin llegar al clip
 
 ### Problema: Respuesta no plana
 **Solución:** Verificar calibración de interface, compensar con EQ de referencia

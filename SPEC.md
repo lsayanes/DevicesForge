@@ -8,7 +8,6 @@ Software VST3 plugin que captura la "huella digital" (Impulse Response) de **dis
 
 - Capturar curva de EQ y respuesta de fase del dispositivo bajo medición (p. ej. canal de consola, preamp)
 - Generar IRs de alta precisión (24-bit / 48kHz)
-- (Opcional, fase posterior) Refinar IRs con IA local si las capturas lo justifican — ver Fase 5
 - Plugin VST3 multiplataforma (macOS / Windows)
 
 ## 3. Arquitectura del Sistema
@@ -26,18 +25,10 @@ Software VST3 plugin que captura la "huella digital" (Impulse Response) de **dis
 │         ▼                  ▼                  ▼             │
 │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    │
 │  │ Sine Sweep  │    │ Audio Input │    │  FFT/Deconv │    │
-│  │ Dirac Delta │    │ Buffer      │    │  AI Engine  │    │
+│  │ Dirac Delta │    │ Buffer      │    │  Windowing  │    │
 │  │ Pink Noise  │    │ Ring Buffer │    │  IR Export  │    │
 │  └─────────────┘    └─────────────┘    └─────────────┘    │
 │                                                             │
-├─────────────────────────────────────────────────────────────┤
-│                    AI HYBRID ENGINE                         │
-├─────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐              ┌─────────────┐              │
-│  │   Local     │              │   Cloud     │              │
-│  │   ONNX RT   │◀────────────▶│   API       │              │
-│  │   Model     │              │   (Optional)│              │
-│  └─────────────┘              └─────────────┘              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -89,25 +80,6 @@ Input Chain:
 - Compensación de fase
 - Zero-padding para resolución espectral
 
-### 4.4 AI Hybrid Engine
-
-**Funciones de IA:**
-1. **Denoising** - Eliminación de ruido de la IR capturada
-2. **Extrapolation** - Extender IR más allá de la captura
-3. **Optimization** - Reducir artefactos de medición
-4. **Style Transfer** - Transferir características entre dispositivos capturados
-
-**Modelo Local (ONNX Runtime):**
-- Modelo entrenado con pares de IRs (ruido/limpio)
-- Input: IR cruda (2048 samples)
-- Output: IR optimizada
-- Tamaño: ~50MB inferencia en CPU
-
-**API Cloud (Opcional):**
-- Endpoint para procesamiento pesado
-- Modelo más grande y preciso
-- Fallback cuando local no es suficiente
-
 ## 5. Formatos de Salida
 
 | Formato | Configuración | Uso |
@@ -139,7 +111,6 @@ Input Chain:
 │  └────────────────────────────────────────────────────┘   │
 │                                                            │
 │  [PROCESS]     Method: [Deconvolution ▼]                  │
-│                AI: [Local ▼]                              │
 │                                                            │
 │  ┌────────────────────────────────────────────────────┐   │
 │  │  IR Preview:                                       │   │
@@ -160,8 +131,6 @@ Input Chain:
 | **Framework** | VST3 SDK | Estándar profesional, cross-platform |
 | **Audio** | JUCE (wrapper) | Facilita desarrollo VST3 |
 | **DSP** | Kiss FFT / pffft | Rápido, libre, optimizado |
-| **AI Local** | ONNX Runtime | Inferencia multiplataforma |
-| **AI Cloud** | REST API | Flexibilidad, modelo pesado |
 | **UI** | VSTGUI / iPlug2 | Integración nativa VST3 |
 | **Build** | CMake | Cross-platform builds |
 | **Tests** | Google Test | Unit testing robusto |
@@ -204,7 +173,7 @@ Input Chain:
 
 ## 10. Roadmap
 
-**Prioridad actual:** validar el concepto en estudio (captura → IR → **escuchar la emulación**) antes de invertir en IA. El laboratorio `ml/` y [`docs/AI-PHASE3.md`](docs/AI-PHASE3.md) quedan **congelados** hasta decidir si hace falta denoise.
+**Prioridad actual:** validar el concepto en estudio (captura → IR → **escuchar la emulación**).
 
 ### Fase 1: MVP (Semanas 1-4) — hecho
 - [x] Setup proyecto VST3 + CMake
@@ -237,19 +206,10 @@ Objetivo: **usar la IR capturada dentro del plugin** y comparar con el dispositi
 - [ ] Automatización de parámetros clave
 - [ ] QA: validator, tests de regresión, checklist de hosts (Cubase AI+)
 
-### Fase 5: IA opcional (solo si las pruebas lo piden)
-La IR ya se obtiene en Fase 2; la IA sería **limpieza opcional** de IR ruidosas.
-
-- [ ] Decisión go/no-go tras experiencia en Fase 3
-- [ ] Integrar ONNX post-captura (STFT + overlap); param **AI** hoy sin efecto — ver [`docs/AI-PHASE3.md`](docs/AI-PHASE3.md)
-- [ ] Entrenar / afinar modelo (`ml/`) si hace falta
-- [ ] ~~API cloud~~ — fuera de alcance hasta tener local estable
-
 ## 11. Referencias
 
 - **VST3 SDK**: https://github.com/steinbergmedia/vst3sdk
 - **JUCE**: https://juce.com
-- **ONNX Runtime**: https://onnxruntime.ai
 - **Sweep deconvolution**: Farina, A. (2000)
 - **IR formats**: OpenAIR library
 

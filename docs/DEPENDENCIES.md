@@ -14,7 +14,6 @@
 |-------------|---------|----------|---------------|-----------|
 | **VST3 SDK** | 3.7.11+ | MIT | ~5 MB | Framework de plugin |
 | **pffft** | latest | BSD | ~200 KB | FFT rápido |
-| **ONNX Runtime** | 1.24.x | MIT | ~30-70 MB | Inferencia de IA |
 | **Google Test** | latest | BSD | ~1 MB | Unit testing |
 
 ## Descargas
@@ -23,17 +22,6 @@
 - **URL**: https://github.com/steinbergmedia/vst3sdk
 - **License**: MIT (gratuito para uso comercial)
 - **Tamaño**: ~5 MB (sin compilar)
-
-### ONNX Runtime
-- **URL**: https://github.com/microsoft/onnxruntime/releases
-- **Paquetes disponibles**:
-
-| Plataforma | Archivo | Tamaño |
-|------------|---------|--------|
-| macOS ARM | `onnxruntime-osx-arm64-1.24.4.tgz` | 29.5 MB |
-| macOS Intel | `onnxruntime-osx-x64-1.24.4.tgz` | ~30 MB |
-| Windows x64 | `onnxruntime-win-x64-1.24.4.zip` | 71 MB |
-| Windows ARM | `onnxruntime-win-arm64-1.24.4.zip` | 71.7 MB |
 
 ### pffft
 - **URL**: https://github.com/marton78/pffft
@@ -97,15 +85,6 @@ ls external/vst3sdk/CMakeLists.txt
 # Debe existir
 ```
 
-### Verificar ONNX Runtime
-```bash
-# Mac
-ls external/onnxruntime/include/onnxruntime_cxx_api.h
-
-# Windows
-dir external\onnxruntime\include\onnxruntime_cxx_api.h
-```
-
 ## Troubleshooting
 
 ### CMake no encontrado
@@ -125,11 +104,6 @@ refreshenv
 - Verificar conexión a internet
 - Verificar que Git está instalado
 - Clonar manualmente: `git clone https://github.com/steinbergmedia/vst3sdk.git external/vst3sdk`
-
-### ONNX Runtime no encontrado
-- Descargar manualmente desde GitHub Releases
-- Extraer en `external/onnxruntime/`
-- Verificar estructura: `external/onnxruntime/include/` y `external/onnxruntime/lib/`
 
 ### Errores de compilación
 - Verificar que CMake >= 3.19

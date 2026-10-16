@@ -75,7 +75,7 @@ namespace DevicesForge
 		constexpr uint32_t IR_SELECT = 1001;
 		constexpr uint32_t MIX = 1002;
 		constexpr uint32_t OUTPUT_GAIN = 1003;
-		constexpr uint32_t AI_DENOISE = 1004;
+		/** 1004 retirado: no reutilizar (proyectos viejos guardaban un parametro ahi). */
 		constexpr uint32_t SIGNAL_TYPE = 1005;
 		constexpr uint32_t SIGNAL_DURATION = 1006;
 		constexpr uint32_t GENERATE = 1007;
