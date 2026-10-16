@@ -2,11 +2,11 @@
 
 #include "pluginterfaces/base/fplatform.h"
 
-#define FULL_VERSION_STR "1.0.0.14"
+#define FULL_VERSION_STR "1.0.0.16"
 #define VERSION_MAJOR 1
 #define VERSION_MINOR 0
 #define VERSION_PATCH 0
-#define VERSION_BUILD 14
+#define VERSION_BUILD 16
 
 #define stringPluginName "DevicesForge"
 #define stringCompanyName "lsayanes & DevicesForge"

@@ -699,7 +699,8 @@ namespace Steinberg
             versionParam->appendString(STR16(FULL_VERSION_STR));
             parameters.addParameter(versionParam);
 
-            parameters.addParameter(STR16("Mix"), STR16("%"), 100, 1.0,
+            /* 10000 pasos = 0.01 %. */
+            parameters.addParameter(STR16("Mix"), STR16("%"), 10000, 1.0,
                 ParameterInfo::kCanAutomate, DevicesForge::PluginParamIDs::MIX);
 
             parameters.addParameter(STR16("Send"), STR16("dB"), 100, 0.5,

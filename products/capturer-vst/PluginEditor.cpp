@@ -125,6 +125,8 @@ namespace Vst {
 
 		addRow(newFrame, 228, "Mix", static_cast<int32_t>(DevicesForge::PluginParamIDs::MIX),
 			   mixSlider, mixReadout, true);
+		/* La rueda comun es 2 % por click; en Mix, un paso de 0.01 %. */
+		mixSlider->setWheelInc(0.0001f);
 		addRow(newFrame, 256, "Gain", static_cast<int32_t>(DevicesForge::PluginParamIDs::OUTPUT_GAIN),
 			   gainSlider, gainReadout, true);
 
@@ -216,7 +218,8 @@ namespace Vst {
 			if (!control)
 				return;
 			const float value = static_cast<float>(controller->getParamNormalized(id));
-			if (std::abs(control->getValue() - value) > 0.0005f)
+			/* Por debajo de un paso de Mix (0.01 % = 0.0001). */
+			if (std::abs(control->getValue() - value) > 0.00005f)
 			{
 				control->setValue(value);
 				control->setDirty();
@@ -274,7 +277,7 @@ namespace Vst {
 		}
 		else if (tag == static_cast<int32_t>(DevicesForge::PluginParamIDs::MIX))
 		{
-			std::snprintf(text, sizeof(text), "%.0f %%", static_cast<double>(normalized * 100.0f));
+			std::snprintf(text, sizeof(text), "%.2f %%", static_cast<double>(normalized * 100.0f));
 			label = mixReadout;
 		}
 		else if (tag == static_cast<int32_t>(DevicesForge::PluginParamIDs::SIGNAL_DURATION))

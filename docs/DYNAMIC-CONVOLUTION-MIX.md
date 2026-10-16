@@ -50,7 +50,7 @@ Si no hay IR cargada, `processChannel` **no modifica** el buffer (early return).
 
 ## Parámetro **Mix** (VST id `1002`)
 
-Definido en el controller como **porcentaje** (0–100 %). En el processor se guarda normalizado `paramMix` ∈ [0, 1].
+Definido en el controller como **porcentaje** (0–100 %, pasos de 0,01 %). En el processor se guarda normalizado `paramMix` ∈ [0, 1] y se pasa tal cual a `setMix`. Achicar ese valor no afina el control: solo baja el máximo de wet.
 
 En el código del convolver ([`DynamicConvolver::processChannel`](../libs/dfcore/DynamicConvolver.cpp)):
 

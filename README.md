@@ -196,7 +196,7 @@ Genera `test_output.wav` con un seno de prueba (útil para humo, no sustituye el
 
 | ID | Nombre | Descripción |
 |----|--------|-------------|
-| 1002 | Mix | 0–100 % (reservado para dry/wet convolver) |
+| 1002 | Mix | 0–100 % en pasos de 0,01 % (dry/wet del convolver) |
 | 1003 | Gain | −12 … +12 dB: volumen de la **emulación** (después del Mix) |
 | 1016 | Send | −12 … +12 dB: nivel del **sweep** hacia el dispositivo (solo Generate) |
 | 1001 | IR | Selección de IR 0–3 (multi-nivel) |
