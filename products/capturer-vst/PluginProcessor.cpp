@@ -65,6 +65,42 @@ namespace Steinberg
                 sampleRate = wav.sampleRate;
                 return !samples.empty();
             }
+
+            /* Quedo con el archivo, sin la carpeta. */
+            std::string fileBaseName(const std::string& path)
+            {
+                const auto pos = path.find_last_of("/\\");
+                if (pos == std::string::npos)
+                    return path;
+                return path.substr(pos + 1);
+            }
+
+            constexpr int32 kIrNameMax = 240;
+
+            void writeIrName(IBStreamer& streamer, const std::string& name)
+            {
+                const int32 n = static_cast<int32>(
+                    std::min(name.size(), static_cast<size_t>(kIrNameMax)));
+                streamer.writeInt32(n);
+                for (int32 i = 0; i < n; ++i)
+                    streamer.writeInt8(static_cast<int8>(name[static_cast<size_t>(i)]));
+            }
+
+            bool readIrName(IBStreamer& streamer, std::string& name)
+            {
+                int32 n = 0;
+                if (!streamer.readInt32(n) || n < 0 || n > kIrNameMax)
+                    return false;
+                name.assign(static_cast<size_t>(n), '\0');
+                for (int32 i = 0; i < n; ++i)
+                {
+                    int8 c = 0;
+                    if (!streamer.readInt8(c))
+                        return false;
+                    name[static_cast<size_t>(i)] = static_cast<char>(c);
+                }
+                return true;
+            }
         }
 
         DevicesForgeProcessor::DevicesForgeProcessor() 
@@ -466,6 +502,12 @@ namespace Steinberg
             if (streamer.readFloat(savedSend))
                 paramSend = savedSend;
 
+            /* Estados viejos no traen nombre: la linea queda vacia. */
+            std::string savedName;
+            if (!readIrName(streamer, savedName))
+                savedName.clear();
+            publishLoadedIrName(savedName);
+
             return kResultOk;
         }
 
@@ -496,6 +538,13 @@ namespace Steinberg
             if (hasIR)
                 streamer.writeFloatArray(irCopy.data(), static_cast<int32>(irCopy.size()));
             streamer.writeFloat(paramSend);
+
+            std::string nameCopy;
+            {
+                std::lock_guard<std::mutex> lock(irMutex);
+                nameCopy = loadedIrFileName;
+            }
+            writeIrName(streamer, nameCopy);
 
             return kResultOk;
         }
@@ -604,6 +653,8 @@ namespace Steinberg
                 convolver.getIRManager().clear();
                 convolver.getIRManager().setLevelIR(0, ir, 0.0f);
             }
+            /* La toma nueva reemplaza el wav que estaba cargado. */
+            publishLoadedIrName("");
 
             DevicesForge::IRExporter::exportAllFormats(sessionDir, ir.data(),
                                                        static_cast<int32_t>(ir.size()), sampleRate);
@@ -649,9 +700,35 @@ namespace Steinberg
             if (static_cast<int32_t>(resampled.size()) > DevicesForge::IR_STATE_MAX_SAMPLES)
                 resampled.resize(static_cast<size_t>(DevicesForge::IR_STATE_MAX_SAMPLES));
 
-            std::lock_guard<std::mutex> lock(irMutex);
-            convolver.getIRManager().clear();
-            convolver.getIRManager().setLevelIR(0, resampled, 0.0f);
+            {
+                std::lock_guard<std::mutex> lock(irMutex);
+                convolver.getIRManager().clear();
+                convolver.getIRManager().setLevelIR(0, resampled, 0.0f);
+            }
+            publishLoadedIrName(fileBaseName(path));
+        }
+
+        /*
+         * publishLoadedIrName
+         *
+         * Pseudocodigo:
+         * 1. Guardar el nombre para el estado del proyecto
+         * 2. Avisar al controller para que el editor lo muestre
+         */
+        void DevicesForgeProcessor::publishLoadedIrName(const std::string& name)
+        {
+            {
+                std::lock_guard<std::mutex> lock(irMutex);
+                loadedIrFileName = name;
+            }
+
+            IPtr<IMessage> message = owned(allocateMessage());
+            if (!message)
+                return;
+            message->setMessageID("DFIRName");
+            String text(name.c_str());
+            message->getAttributes()->setString("Name", text);
+            sendMessage(message);
         }
 
         tresult PLUGIN_API DevicesForgeProcessor::notify(IMessage* message)
@@ -836,7 +913,39 @@ namespace Steinberg
             if (streamer.readFloat(savedSend))
                 setParamNormalized(DevicesForge::PluginParamIDs::SEND, savedSend);
 
+            std::string savedName;
+            if (readIrName(streamer, savedName))
+                setLoadedIrName(savedName);
+
             return kResultOk;
+        }
+
+        std::string DevicesForgeController::loadedIrName() const
+        {
+            std::lock_guard<std::mutex> lock(irNameMutex);
+            return loadedIrFileName;
+        }
+
+        void DevicesForgeController::setLoadedIrName(const std::string& name)
+        {
+            std::lock_guard<std::mutex> lock(irNameMutex);
+            loadedIrFileName = name;
+        }
+
+        tresult PLUGIN_API DevicesForgeController::notify(IMessage* message)
+        {
+            if (message && FIDStringsEqual(message->getMessageID(), "DFIRName"))
+            {
+                TChar nameW[512] = {};
+                if (message->getAttributes()->getString("Name", nameW,
+                                                        static_cast<uint32>(sizeof(nameW))) == kResultOk)
+                {
+                    String text(nameW);
+                    setLoadedIrName(text.text8() ? std::string(text.text8()) : std::string());
+                }
+                return kResultOk;
+            }
+            return EditController::notify(message);
         }
 
         void DevicesForgeController::sendIRPathMessage(const char* messageId, const std::string& path)

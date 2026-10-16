@@ -3,6 +3,8 @@
 #include "public.sdk/source/vst/vstguieditor.h"
 #include "vstgui/lib/controls/ccontrol.h"
 
+#include <string>
+
 namespace Steinberg {
 namespace Vst {
 
@@ -43,6 +45,7 @@ namespace Vst {
 		VSTGUI::CTextLabel* durationReadout { nullptr };
 		VSTGUI::CTextLabel* inPeakReadout { nullptr };
 		VSTGUI::CTextLabel* irLenLabel { nullptr };
+		std::string shownIrLine;
 	};
 
 } // Vst

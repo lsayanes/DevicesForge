@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "PluginProcessor.h"
 #include "DevicesForge.h"
 #include "version.h"
 
@@ -253,13 +254,24 @@ namespace Vst {
 			const float norm = static_cast<float>(
 				controller->getParamNormalized(DevicesForge::PluginParamIDs::IR_LENGTH_MS));
 			const float irMs = norm * DevicesForge::IR_LENGTH_METER_MAX_MS;
-			char text[64];
-			if (irMs < 0.5f)
+			const std::string irName =
+				static_cast<DevicesForgeController*>(controller)->loadedIrName();
+			char text[320];
+			if (!irName.empty() && irMs >= 0.5f)
+				std::snprintf(text, sizeof(text), "%s    %.0f ms", irName.c_str(),
+							  static_cast<double>(irMs));
+			else if (!irName.empty())
+				std::snprintf(text, sizeof(text), "%s", irName.c_str());
+			else if (irMs < 0.5f)
 				std::snprintf(text, sizeof(text), "IR  —  sin muestra (passthrough)");
 			else
 				std::snprintf(text, sizeof(text), "IR  %.0f ms", static_cast<double>(irMs));
-			irLenLabel->setText(text);
-			irLenLabel->setFontColor(irMs < 0.5f ? kMuted : kTeal);
+			if (shownIrLine != text)
+			{
+				shownIrLine = text;
+				irLenLabel->setText(text);
+				irLenLabel->setFontColor((irMs < 0.5f && irName.empty()) ? kMuted : kTeal);
+			}
 		}
 	}
 

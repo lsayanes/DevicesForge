@@ -66,8 +66,10 @@ namespace Steinberg
             void exportCurrentIR(bool allFormats);
             void saveIRToPath(const std::string& path);
             void loadIRFromPath(const std::string& path);
+            void publishLoadedIrName(const std::string& name);
 
             std::mutex irMutex;
+            std::string loadedIrFileName;
 
             float meterPeak = 0.0f;   // peak-hold con decaimiento para InPeak
         };
@@ -85,14 +87,20 @@ namespace Steinberg
             tresult PLUGIN_API terminate() SMTG_OVERRIDE;
             tresult PLUGIN_API setComponentState(IBStream* state) SMTG_OVERRIDE;
             tresult PLUGIN_API setParamNormalized(ParamID tag, ParamValue value) SMTG_OVERRIDE;
+            tresult PLUGIN_API notify(IMessage* message) SMTG_OVERRIDE;
             IPlugView* PLUGIN_API createView(FIDString name) SMTG_OVERRIDE;
+
+            std::string loadedIrName() const;
 
         private:
             void sendIRPathMessage(const char* messageId, const std::string& path);
             void runFileDialogOnce(ParamID tag);
+            void setLoadedIrName(const std::string& name);
 
             bool fileDialogBusy { false };
             double fileDialogIgnoreUntil { 0.0 };
+            mutable std::mutex irNameMutex;
+            std::string loadedIrFileName;
         };
 
     } //  Vst
