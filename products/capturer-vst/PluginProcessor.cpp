@@ -7,6 +7,9 @@
 #include "IRPostProcessor.h"
 #include "SweepDeconvolver.h"
 #include "IRExporter.h"
+#include "WavIO.h"
+#include "IRResampler.h"
+#include "CaptureFile.h"
 
 #include "pluginterfaces/base/ibstream.h"
 #include "pluginterfaces/vst/ivstparameterchanges.h"
@@ -32,6 +35,35 @@ namespace Steinberg
             float outputGainLinear(float normalizedGain)
             {
                 return std::pow(10.0f, (normalizedGain * 24.0f - 12.0f) / 20.0f);
+            }
+
+            /*
+             * readIrFile
+             *
+             * Pseudocodigo:
+             * 1. Si es .dfcapture, leer el canal 0
+             * 2. Si es WAV, leer PCM 16/24 o float 32, canal 0
+             */
+            bool readIrFile(const std::string& path, std::vector<float>& samples, double& sampleRate)
+            {
+                samples.clear();
+                sampleRate = 0.0;
+                if (DevicesForge::isCapturePath(path))
+                {
+                    DevicesForge::CaptureData capture;
+                    if (!DevicesForge::CaptureFile::load(path, capture) || capture.channels.empty())
+                        return false;
+                    samples = capture.channels[0];
+                    sampleRate = capture.sampleRate;
+                    return !samples.empty();
+                }
+
+                DevicesForge::WavBuffer wav;
+                if (!DevicesForge::WavIO::load(path, wav) || wav.channels.empty())
+                    return false;
+                samples = std::move(wav.channels[0]);
+                sampleRate = wav.sampleRate;
+                return !samples.empty();
             }
         }
 
@@ -603,13 +635,23 @@ namespace Steinberg
         void DevicesForgeProcessor::loadIRFromPath(const std::string& path)
         {
             std::vector<float> ir;
-            double sampleRate = DevicesForge::SAMPLE_RATE_DEFAULT;
-            if (!DevicesForge::IRExporter::loadWavFloat32(path, ir, sampleRate) || ir.empty())
+            double fileRate = 0.0;
+            if (!readIrFile(path, ir, fileRate) || ir.empty())
                 return;
+
+            /* Llevo la IR a la tasa del proyecto */
+            const double projectRate = processSetup.sampleRate > 0.0 ? processSetup.sampleRate
+                                                                     : DevicesForge::SAMPLE_RATE_DEFAULT;
+            std::vector<float> resampled;
+            if (!DevicesForge::IRResampler::resample(ir.data(), static_cast<int32_t>(ir.size()),
+                                                     fileRate, resampled, projectRate))
+                return;
+            if (static_cast<int32_t>(resampled.size()) > DevicesForge::IR_STATE_MAX_SAMPLES)
+                resampled.resize(static_cast<size_t>(DevicesForge::IR_STATE_MAX_SAMPLES));
 
             std::lock_guard<std::mutex> lock(irMutex);
             convolver.getIRManager().clear();
-            convolver.getIRManager().setLevelIR(0, ir, 0.0f);
+            convolver.getIRManager().setLevelIR(0, resampled, 0.0f);
         }
 
         tresult PLUGIN_API DevicesForgeProcessor::notify(IMessage* message)

@@ -405,9 +405,11 @@ namespace DevicesForge
 
 		for (int32_t i = 0; i < numSamples; ++i)
 		{
+			/* floatToPcm24 entrega big-endian (AIFF). WAV es little-endian. */
 			uint8_t pcm[3];
 			floatToPcm24(samples[static_cast<size_t>(i)], pcm);
-			file.write(reinterpret_cast<const char*>(pcm), 3);
+			const uint8_t le[3] = { pcm[2], pcm[1], pcm[0] };
+			file.write(reinterpret_cast<const char*>(le), 3);
 		}
 
 		return file.good();

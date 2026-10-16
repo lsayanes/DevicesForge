@@ -51,7 +51,7 @@ Cada captura exitosa escribe **todos** los formatos de IR en `latest/` automáti
 | Parámetro | Qué hace |
 |-----------|----------|
 | **SaveIR** | Diálogo nativo (macOS y Windows): elegís carpeta y nombre. Escribe WAV IEEE float 32-bit. |
-| **LoadIR** | Diálogo nativo (macOS y Windows): abrís un `.wav` float guardado (o `IR.float.wav` de `latest/`). |
+| **LoadIR** | Diálogo nativo (macOS y Windows): WAV PCM 16/24 o float 32, o un `.dfcapture`. Si la tasa no es la del proyecto, la IR se remuestrea. |
 
 Carpeta inicial del diálogo: la última que usaste (la primera vez, `~/Documents/DevicesForge/library/`). Cubase a veces dispara SaveIR/LoadIR dos veces; el segundo diálogo se ignora.
 

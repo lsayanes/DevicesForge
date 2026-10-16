@@ -14,6 +14,9 @@
 #include "IRPostProcessor.h"
 #include "SweepDeconvolver.h"
 #include "IRExporter.h"
+#include "WavIO.h"
+#include "IRResampler.h"
+#include "CaptureFile.h"
 
 using namespace DevicesForge;
 
@@ -709,6 +712,137 @@ TEST(SweepDeconvolverTest, IdentityRecordedMatchesReference) {
     }
     EXPECT_LT(peakIndex, 32);
     EXPECT_GT(peakValue, 0.0f);
+}
+
+// ============================================================================
+// WavIO, remuestreo y .dfcapture
+// ============================================================================
+
+TEST(WavIOTest, Pcm24RoundTripKeepsLevel) {
+    WavBuffer in;
+    in.sampleRate = 48000.0;
+    in.channels = {{0.0f, 0.5f, -0.25f, 0.125f}};
+    const std::string path = IRExporter::defaultLibraryDirectory() + "/unit_pcm24.wav";
+    ASSERT_TRUE(WavIO::save(path, in, 24));
+
+    WavBuffer out;
+    ASSERT_TRUE(WavIO::load(path, out));
+    EXPECT_NEAR(out.sampleRate, 48000.0, 0.5);
+    ASSERT_EQ(out.channels.size(), 1u);
+    ASSERT_EQ(out.channels[0].size(), in.channels[0].size());
+    for (size_t i = 0; i < in.channels[0].size(); ++i)
+        EXPECT_NEAR(out.channels[0][i], in.channels[0][i], 2.0e-6f);
+    std::remove(path.c_str());
+}
+
+TEST(WavIOTest, StereoPcm16KeepsBothChannels) {
+    WavBuffer in;
+    in.sampleRate = 44100.0;
+    in.channels = {{0.25f, -0.5f}, {-0.75f, 0.125f}};
+    const std::string path = IRExporter::defaultLibraryDirectory() + "/unit_pcm16_st.wav";
+    ASSERT_TRUE(WavIO::save(path, in, 16));
+
+    WavBuffer out;
+    ASSERT_TRUE(WavIO::load(path, out));
+    ASSERT_EQ(out.channels.size(), 2u);
+    for (size_t c = 0; c < 2; ++c)
+        for (size_t i = 0; i < 2; ++i)
+            EXPECT_NEAR(out.channels[c][i], in.channels[c][i], 1.0f / 32768.0f);
+    std::remove(path.c_str());
+}
+
+TEST(WavIOTest, LoadsExporterPcm24LittleEndian) {
+    const std::vector<float> ir = {0.0f, -0.5f, 0.25f};
+    IRExportRequest request;
+    request.samples = ir.data();
+    request.numSamples = static_cast<int32_t>(ir.size());
+    request.sampleRate = 44100.0;
+    request.format = IRExportFormat::WavPcm24;
+    request.filePath = IRExporter::defaultLibraryDirectory() + "/unit_export_pcm24.wav";
+    ASSERT_TRUE(IRExporter::exportBuffer(request));
+
+    WavBuffer wav;
+    ASSERT_TRUE(WavIO::load(request.filePath, wav));
+    ASSERT_EQ(wav.channels.size(), 1u);
+    ASSERT_EQ(wav.channels[0].size(), ir.size());
+    for (size_t i = 0; i < ir.size(); ++i)
+        EXPECT_NEAR(wav.channels[0][i], ir[i], 2.0e-6f);
+    std::remove(request.filePath.c_str());
+}
+
+TEST(IRResamplerTest, ImpulseMovesWithRate) {
+    std::vector<float> input(1000, 0.0f);
+    input[200] = 1.0f;
+    std::vector<float> output;
+    ASSERT_TRUE(IRResampler::resample(input.data(), 1000, 44100.0, output, 48000.0));
+
+    int32_t peak = 0;
+    float peakValue = 0.0f;
+    for (int32_t i = 0; i < static_cast<int32_t>(output.size()); ++i) {
+        const float value = std::abs(output[static_cast<size_t>(i)]);
+        if (value > peakValue) {
+            peakValue = value;
+            peak = i;
+        }
+    }
+    const int32_t expected = static_cast<int32_t>(std::lround(200.0 * 48000.0 / 44100.0));
+    EXPECT_NEAR(peak, expected, 1);
+    EXPECT_GT(peakValue, 0.5f);
+}
+
+TEST(IRResamplerTest, ConstantLevelIsPreserved) {
+    const std::vector<float> input(400, 0.5f);
+    std::vector<float> output;
+    ASSERT_TRUE(IRResampler::resample(input.data(), static_cast<int32_t>(input.size()),
+                                      44100.0, output, 48000.0));
+    ASSERT_GT(output.size(), 80u);
+    for (size_t i = 40; i + 40 < output.size(); ++i)
+        EXPECT_NEAR(output[i], 0.5f, 0.01f);
+}
+
+TEST(CaptureFileTest, RoundTripAndRejectsBadChecksum) {
+    CaptureData data;
+    data.name = "Canal 1";
+    data.device = "Consola";
+    data.author = "ls";
+    data.date = "2026-10-16";
+    data.notes = "toma limpia";
+    data.sampleRate = 48000.0;
+    data.sendDb = -6.0f;
+    data.channels = {{0.0f, 1.0f, -0.5f}};
+    const std::string path = IRExporter::defaultLibraryDirectory() + "/unit." + kCaptureExtension;
+    ASSERT_TRUE(CaptureFile::save(path, data));
+
+    CaptureData loaded;
+    ASSERT_TRUE(CaptureFile::load(path, loaded));
+    EXPECT_EQ(loaded.name, data.name);
+    EXPECT_EQ(loaded.device, data.device);
+    EXPECT_NEAR(loaded.sendDb, -6.0f, 1.0e-6f);
+    ASSERT_EQ(loaded.channels.size(), 1u);
+    ASSERT_EQ(loaded.channels[0].size(), 3u);
+    EXPECT_FLOAT_EQ(loaded.channels[0][1], 1.0f);
+
+    std::fstream file(path, std::ios::binary | std::ios::in | std::ios::out);
+    ASSERT_TRUE(file.good());
+    file.seekp(-1, std::ios::end);
+    char byte = 0;
+    file.seekg(-1, std::ios::end);
+    file.read(&byte, 1);
+    byte = static_cast<char>(byte ^ 0x5A);
+    file.seekp(-1, std::ios::end);
+    file.write(&byte, 1);
+    file.close();
+    EXPECT_FALSE(CaptureFile::load(path, loaded));
+    std::remove(path.c_str());
+}
+
+TEST(CaptureFileTest, BandNormalizeScalesImpulseToUnity) {
+    std::vector<float> ir(256, 0.0f);
+    ir[0] = 0.25f;
+    float gainDb = 0.0f;
+    ASSERT_TRUE(normalizeBandUnity(ir, 48000.0, gainDb));
+    EXPECT_NEAR(ir[0], 1.0f, 1.0e-3f);
+    EXPECT_NEAR(gainDb, static_cast<float>(20.0 * std::log10(0.25)), 0.05f);
 }
 
 // ============================================================================

@@ -1,5 +1,6 @@
 #include "FileDialog.h"
 #include "IRExporter.h"
+#include "CaptureFile.h"
 
 #import <AppKit/AppKit.h>
 
@@ -55,7 +56,8 @@ namespace DevicesForge
 		@autoreleasepool
 		{
 			NSOpenPanel* panel = [NSOpenPanel openPanel];
-			[panel setAllowedFileTypes:@[ @"wav" ]];
+			NSString* captureExt = [NSString stringWithUTF8String:kCaptureExtension];
+			[panel setAllowedFileTypes:@[ @"wav", captureExt ]];
 			[panel setCanChooseFiles:YES];
 			[panel setCanChooseDirectories:NO];
 			[panel setAllowsMultipleSelection:NO];

@@ -1,5 +1,6 @@
 #include "FileDialog.h"
 #include "IRExporter.h"
+#include "CaptureFile.h"
 
 #include <string>
 
@@ -76,9 +77,19 @@ namespace DevicesForge
 			const std::wstring initialDir = utf8ToWide(IRExporter::rememberedBrowseDirectory());
 			wchar_t fileName[MAX_PATH] = L"IR.float.wav";
 
+			const std::wstring captureExt = utf8ToWide(kCaptureExtension);
+			std::wstring openFilter = L"IR (*.wav;*.";
+			openFilter += captureExt;
+			openFilter += L")";
+			openFilter.push_back(L'\0');
+			openFilter += L"*.wav;*.";
+			openFilter += captureExt;
+			openFilter.push_back(L'\0');
+			openFilter.push_back(L'\0');
+
 			OPENFILENAMEW ofn {};
 			ofn.lStructSize = sizeof(ofn);
-			ofn.lpstrFilter = L"WAV float (*.wav)\0*.wav\0Todos (*.*)\0*.*\0\0";
+			ofn.lpstrFilter = save ? L"WAV (*.wav)\0*.wav\0\0" : openFilter.c_str();
 			ofn.lpstrFile = fileName;
 			ofn.nMaxFile = MAX_PATH;
 			ofn.lpstrInitialDir = initialDir.empty() ? nullptr : initialDir.c_str();

@@ -215,7 +215,8 @@ namespace Vst {
 			return;
 
 		auto apply = [controller](CControl* control, ParamID id) {
-			if (!control)
+			/* El boton avisa al soltar. Si lo piso aca, el click se pierde. */
+			if (!control || control->isEditing())
 				return;
 			const float value = static_cast<float>(controller->getParamNormalized(id));
 			/* Por debajo de un paso de Mix (0.01 % = 0.0001). */

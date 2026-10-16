@@ -8,6 +8,12 @@ add_library(dfcore STATIC
     DynamicConvolver.h
     IRExporter.cpp
     IRExporter.h
+    WavIO.cpp
+    WavIO.h
+    IRResampler.cpp
+    IRResampler.h
+    CaptureFile.cpp
+    CaptureFile.h
 )
 
 target_include_directories(dfcore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

@@ -86,7 +86,7 @@ En la versión actual **no** hace falta un botón **[CAPTURE]** aparte: la venta
 La IR vive en el plugin y también en el estado del **proyecto** (si guardás el .cpr). Si **sacás el insert** y lo volvés a poner, Cubase crea una instancia nueva: la muestra en memoria se pierde.
 
 - **SaveIR**: diálogo para elegir carpeta y nombre. Escribe un WAV float 32-bit. Por defecto ofrece `~/Documents/DevicesForge/library/`.
-- **LoadIR**: diálogo para ir a buscar ese archivo (u otro WAV float de DevicesForge).
+- **LoadIR**: diálogo para ir a buscar ese archivo, un WAV PCM 16/24 o float, o un `.dfcapture`. Si la tasa difiere de la del proyecto, se remuestrea.
 - **IRLen > 0** confirma que hay IR cargada.
 
 `exports/latest/` sigue siendo la copia automática de la última toma; SaveIR es la copia que **vos** archivás.
