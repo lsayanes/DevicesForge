@@ -20,7 +20,8 @@ namespace
 			<< "make-sweep escribe silencio + marca + N barridos + marca + silencio.\n"
 			<< "analyze tiene que usar el mismo duration y repeats. El rate sale del WAV.\n"
 			<< "Corrige la velocidad media de la cinta. No corrige wow ni flutter.\n"
-			<< "La cola entre barridos es 0,5 s: una IR mas larga se mezcla con el siguiente.\n";
+			<< "La cola entre barridos es 0,5 s: una IR mas larga se mezcla con el siguiente.\n"
+			<< "analyze tambien escribe nombre.informe.html, con el grafico de la toma.\n";
 	}
 
 	bool takeArg(int& index, int argc, char** argv, std::string& value)
@@ -238,7 +239,14 @@ namespace
 			return 1;
 		}
 
-		std::cout << report.text;
+		const std::string htmlPath = DevicesForge::reportHtmlPath(output);
+		if (!DevicesForge::OfflineCapturer::writeHtmlReport(htmlPath, capture, report))
+		{
+			std::cerr << "no pude escribir " << htmlPath << "\n";
+			return 1;
+		}
+
+		std::cout << report.text << "informe=" << htmlPath << "\n";
 		return 0;
 	}
 

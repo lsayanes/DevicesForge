@@ -242,6 +242,10 @@ Si la cinta corrió más rápido o más lento, la distancia entre las dos marcas
 
 Las pasadas no se suman como IR: con wow cada una llega corrida distinto y la suma cancela bandas (en la Revox A77 de prueba, −6 dB en 1,3–2,5 kHz). Se promedia la **magnitud** (|H|²) de las pasadas y la IR se arma de **fase mínima** (cepstro real). La respuesta en frecuencia es la de la cinta; el pico queda al inicio y positivo, así el Mix del plugin no hace peine aunque el equipo invierta la polaridad (`polarity=` en el reporte). Lo que no se guarda es el corrimiento temporal de cada pasada, que en una cinta es mayormente wow.
 
+Después de **Analizar**, el Capturador muestra al lado del reporte la respuesta en frecuencia de cada repetición del barrido y la de la IR guardada. Va en 1/6 de octava, relativa a 1 kHz, de 20 Hz a 20 kHz. Pasando el mouse se ven los dB de cada curva en esa banda. Sirve para ver si las repeticiones coinciden: si una se separa (en la Revox, la primera salió ~4 dB más opaca arriba de 8 kHz), la IR queda en el promedio y conviene repetir la toma o revisar el contacto de la cinta.
+
+En la misma carpeta queda `nombre.informe.html` (también con `dfcapture analyze`). Es el mismo gráfico, más una tabla de dB y el comienzo de la IR, para abrirlo en el navegador y guardarlo con la captura. El `.quality.txt` sigue siendo el reporte en texto.
+
 ---
 
 *Guía v1.1 - Septiembre 2026*

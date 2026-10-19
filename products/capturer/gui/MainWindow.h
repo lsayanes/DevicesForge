@@ -12,6 +12,7 @@ class QPushButton;
 class QSpinBox;
 
 class CaptureJob;
+class ResponsePlot;
 
 /**
  * MainWindow
@@ -51,6 +52,7 @@ private:
 	QDoubleSpinBox* sendBox { nullptr };
 	QLineEdit* capturePath { nullptr };
 	QPlainTextEdit* report { nullptr };
+	ResponsePlot* plot { nullptr };
 	QPushButton* generateButton { nullptr };
 	QPushButton* analyzeButton { nullptr };
 	QLabel* statusLabel { nullptr };

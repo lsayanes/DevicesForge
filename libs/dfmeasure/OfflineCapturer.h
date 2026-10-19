@@ -55,6 +55,12 @@ namespace DevicesForge
 		bool polarityInverted = false;
 		/** Muestra del pico. El plugin retrasa el seco hasta ahi. */
 		int32_t peakIndex = 0;
+		/** Centros de 1/6 de octava (Hz) para graficar la respuesta. */
+		std::vector<float> bandHz;
+		/** Respuesta de cada pasada en bandHz, dB relativos a 1 kHz. */
+		std::vector<std::vector<float>> passBandsDb;
+		/** Respuesta de la IR guardada en bandHz, dB relativos a 1 kHz. */
+		std::vector<float> irBandsDb;
 		std::string text;
 	};
 
@@ -85,6 +91,7 @@ namespace DevicesForge
 		 * 3. Deconvolucionar cada barrido y promediar |H|^2 (sin sumar IRs)
 		 * 4. Armar la IR de fase minima: pico al inicio y positivo (Mix en fase)
 		 * 5. Ventanear, normalizar en banda y armar el reporte
+		 * 6. Guardar la respuesta por 1/6 de octava de cada pasada y de la IR
 		 */
 		static bool analyze(const float* recording,
 							int32_t recordingLength,
@@ -92,6 +99,27 @@ namespace DevicesForge
 							const AnalyzeOptions& options,
 							CaptureData& capture,
 							QualityReport& report);
+
+		/*
+		 * writeHtmlReport
+		 *
+		 * Pseudocodigo:
+		 * 1. Armar una pagina con los datos de la toma y el grafico de bandas
+		 * 2. Escribirla en path (al lado de la captura: nombre.informe.html)
+		 */
+		static bool writeHtmlReport(const std::string& path,
+									const CaptureData& capture,
+									const QualityReport& report);
 	};
+
+	/** Path del informe HTML que acompaña a una captura. */
+	inline std::string reportHtmlPath(const std::string& capturePath)
+	{
+		const auto dot = capturePath.find_last_of('.');
+		const auto slash = capturePath.find_last_of("/\\");
+		if (dot != std::string::npos && (slash == std::string::npos || dot > slash))
+			return capturePath.substr(0, dot) + ".informe.html";
+		return capturePath + ".informe.html";
+	}
 
 } // namespace DevicesForge

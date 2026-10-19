@@ -30,6 +30,8 @@ qt_add_executable(Capturador
     gui/main.cpp
     gui/MainWindow.cpp
     gui/MainWindow.h
+    gui/ResponsePlot.cpp
+    gui/ResponsePlot.h
 )
 
 target_link_libraries(Capturador PRIVATE Qt6::Widgets dfmeasure)

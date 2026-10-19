@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <clocale>
 #include <cmath>
 #include <complex>
 #include <cstdio>
@@ -1099,6 +1100,101 @@ TEST(OfflineCapturerTest, PassesWithDifferentDelayDoNotComb) {
     };
     EXPECT_NEAR(bandDb(1500.0, 2500.0) - bandDb(500.0, 1000.0), 0.0, 1.0);
     EXPECT_LT(report.peakIndex, 8);
+}
+
+// El grafico del Capturador: una curva por pasada y la de la IR, relativas a 1 kHz.
+// La segunda pasada pasa por y = x + 0,5 x[n-1] (pierde agudos): su curva tiene que
+// seguir ese filtro y la IR quedar en el promedio de potencia de las dos.
+TEST(OfflineCapturerTest, BandResponseFollowsEachPass) {
+    SweepSpec spec;
+    spec.sampleRate = 48000.0;
+    spec.durationSeconds = 0.5f;
+    spec.repeats = 2;
+
+    std::vector<float> sweep;
+    SweepLayout layout;
+    ASSERT_TRUE(OfflineCapturer::makeSweep(spec, sweep, layout));
+
+    /* Filtro solo la segunda pasada */
+    const int32_t secondFrom = layout.leadSilence + layout.syncLength + layout.gapLength +
+                               layout.sweepLength + layout.gapLength;
+    const int32_t secondTo = secondFrom + layout.sweepLength;
+    std::vector<float> through(sweep);
+    for (int32_t i = secondFrom; i <= secondTo; ++i)
+        through[static_cast<size_t>(i)] += 0.5f * sweep[static_cast<size_t>(i - 1)];
+
+    AnalyzeOptions options;
+    options.sweep = spec;
+    CaptureData capture;
+    QualityReport report;
+    ASSERT_TRUE(OfflineCapturer::analyze(through.data(), static_cast<int32_t>(through.size()),
+                                         spec.sampleRate, options, capture, report))
+        << report.text;
+
+    ASSERT_EQ(report.bandHz.size(), 58u);
+    EXPECT_NEAR(report.bandHz.front(), 24.8f, 0.1f);
+    EXPECT_LT(report.bandHz.back(), 20000.0f);
+    ASSERT_EQ(report.passBandsDb.size(), 2u);
+    ASSERT_EQ(report.passBandsDb[0].size(), report.bandHz.size());
+    ASSERT_EQ(report.passBandsDb[1].size(), report.bandHz.size());
+    ASSERT_EQ(report.irBandsDb.size(), report.bandHz.size());
+
+    /* |1 + 0,5 e^-jw|^2 del filtro de la segunda pasada */
+    auto filterPower = [&](double hz) {
+        const double w = 2.0 * 3.14159265358979 * hz / spec.sampleRate;
+        return 1.25 + std::cos(w);
+    };
+    const double ref = filterPower(1000.0);
+    for (size_t b = 0; b < report.bandHz.size(); ++b) {
+        const double hz = report.bandHz[b];
+        if (hz < 40.0 || hz > 16000.0)
+            continue;
+        const double second = 10.0 * std::log10(filterPower(hz) / ref);
+        const double average = 10.0 * std::log10((1.0 + filterPower(hz)) / (1.0 + ref));
+        EXPECT_NEAR(report.passBandsDb[0][b], 0.0, 0.3) << hz << " Hz";
+        EXPECT_NEAR(report.passBandsDb[1][b], second, 0.3) << hz << " Hz";
+        EXPECT_NEAR(report.irBandsDb[b], average, 0.3) << hz << " Hz";
+    }
+}
+
+// El informe HTML acompaña a la captura: curvas, tabla y el nombre escapado.
+TEST(OfflineCapturerTest, HtmlReportShowsBandsAndEscapesText) {
+    CaptureData capture;
+    capture.name = "A<B>&C";
+    capture.device = "cinta";
+    capture.sampleRate = 48000.0;
+    capture.channels.assign(1, std::vector<float>(144, 0.0f));
+    capture.channels[0][1] = 0.5f;
+
+    QualityReport report;
+    report.speedRatio = 1.00005;
+    report.polarityInverted = true;
+    report.peakIndex = 1;
+    report.bandHz = {1000.0f, 8000.0f};
+    report.passBandsDb = {{0.0f, -4.0f}, {0.0f, 4.0f}};
+    report.irBandsDb = {0.0f, 0.5f};
+    report.text = "quality=ok\n";
+
+    /* Con locale en espanol (como la app Qt) el SVG tiene que seguir con punto decimal */
+    const std::string path = "/tmp/df-informe-test.informe.html";
+    const bool spanish = std::setlocale(LC_NUMERIC, "es_ES.UTF-8") != nullptr;
+    const bool written = OfflineCapturer::writeHtmlReport(path, capture, report);
+    std::setlocale(LC_NUMERIC, "C");
+    ASSERT_TRUE(written);
+    std::ifstream in(path);
+    const std::string html((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    EXPECT_TRUE(spanish) << "no hay locale es_ES.UTF-8: el chequeo de punto decimal no aplica";
+    EXPECT_NE(html.find("x1=\"46.00\""), std::string::npos);
+    EXPECT_EQ(html.find("46,00"), std::string::npos);
+    EXPECT_NE(html.find("A&lt;B&gt;&amp;C"), std::string::npos);
+    EXPECT_EQ(html.find("A<B>"), std::string::npos);
+    EXPECT_NE(html.find("Repetición 1"), std::string::npos);
+    EXPECT_NE(html.find("Invertida"), std::string::npos);
+    EXPECT_NE(html.find("+4,0"), std::string::npos);
+    EXPECT_NE(html.find("-4,0"), std::string::npos);
+    EXPECT_NE(html.find("8,0 dB"), std::string::npos);
+    EXPECT_NE(html.find("quality=ok"), std::string::npos);
+    std::remove(path.c_str());
 }
 
 // ============================================================================

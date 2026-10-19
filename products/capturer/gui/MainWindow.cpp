@@ -1,6 +1,7 @@
 #include "MainWindow.h"
 
 #include "OfflineCapturer.h"
+#include "ResponsePlot.h"
 #include "WavIO.h"
 
 #include <QComboBox>
@@ -117,12 +118,18 @@ class CaptureJob : public QThread
 
 		bool ok { false };
 		QString summary;
+		std::vector<float> bandHz;
+		std::vector<std::vector<float>> passBandsDb;
+		std::vector<float> irBandsDb;
 
 	protected:
 		void run() override
 		{
 			ok = false;
 			summary.clear();
+			bandHz.clear();
+			passBandsDb.clear();
+			irBandsDb.clear();
 			if (kind == Kind::Sweep)
 				writeSweep();
 			else
@@ -212,7 +219,17 @@ class CaptureJob : public QThread
 				return;
 			}
 
-			summary = QString::fromStdString(report.text);
+			const std::string htmlPath = DevicesForge::reportHtmlPath(captureFile.toStdString());
+			if (!DevicesForge::OfflineCapturer::writeHtmlReport(htmlPath, capture, report))
+			{
+				summary = "La captura se guardó, pero no pude escribir " + QString::fromStdString(htmlPath);
+				return;
+			}
+
+			summary = QString::fromStdString(report.text) + "informe=" + QString::fromStdString(htmlPath);
+			bandHz = std::move(report.bandHz);
+			passBandsDb = std::move(report.passBandsDb);
+			irBandsDb = std::move(report.irBandsDb);
 			ok = true;
 		}
 };
@@ -252,7 +269,7 @@ MainWindow::MainWindow(QWidget* parent)
 	connect(job, &QThread::finished, this, &MainWindow::onJobFinished);
 	buildUi();
 	restoreSettings();
-	resize(920, 520);
+	resize(980, 700);
 	/* Si macOS restaura el alto viejo, lo bajo a la pantalla mas chica (la de la Mac). */
 	QTimer::singleShot(0, this, [this] {
 		int shortest = height();
@@ -349,8 +366,8 @@ void MainWindow::buildUi()
 	report = new QPlainTextEdit;
 	report->setReadOnly(true);
 	report->setPlaceholderText("Acá aparece el reporte de la toma.");
-	report->setMinimumHeight(72);
-	report->setMaximumHeight(96);
+	report->setMinimumHeight(200);
+	plot = new ResponsePlot;
 
 	analyzeLayout->addWidget(labeled("Grabación", recordingRow, 1));
 	auto* meta = new QHBoxLayout;
@@ -372,10 +389,15 @@ void MainWindow::buildUi()
 	auto* analyzeHint = new QLabel(
 		"Misma duración y repeticiones que el barrido. La tasa sale del WAV. "
 		"Se corrige la velocidad media, no el wow. "
-		"Si el archivo sigue siendo captura, el nombre pasa a ser el archivo.");
+		"Si el archivo sigue siendo captura, el nombre pasa a ser el archivo. "
+		"Al lado de la captura queda un informe HTML.");
 	analyzeHint->setObjectName("hint");
 	analyzeLayout->addWidget(analyzeHint);
-	analyzeLayout->addWidget(report);
+	auto* results = new QHBoxLayout;
+	results->setSpacing(10);
+	results->addWidget(report, 2);
+	results->addWidget(plot, 3);
+	analyzeLayout->addLayout(results, 1);
 	root->addWidget(analyzeGroup);
 
 	statusLabel = new QLabel("Listo.");
@@ -551,4 +573,6 @@ void MainWindow::onJobFinished()
 	setBusy(false);
 	report->setPlainText(job->summary);
 	statusLabel->setText(job->ok ? "Listo." : "No se pudo completar.");
+	if (job->kind == CaptureJob::Kind::Analyze)
+		plot->setResponse(job->bandHz, job->passBandsDb, job->irBandsDb);
 }
