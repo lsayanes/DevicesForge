@@ -168,6 +168,7 @@ echo "============================================"
 echo ""
 echo "Artefactos:"
 echo "  Plugin:  $BUILD_DIR/VST3/$BUILD_TYPE/DevicesForge.vst3"
+echo "           $BUILD_DIR/VST3/$BUILD_TYPE/VirtualDevices.vst3"
 echo "  CLI:     $BUILD_DIR/bin/dfcapture"
 if [[ -d "$BUILD_DIR/Capturador.app" ]]; then
     echo "  App:     $BUILD_DIR/Capturador.app"

@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<vstgui-ui-description version="1">
+	<bitmaps>
+		<bitmap name="panel" path="panel.png"/>
+		<bitmap name="panel#2x" path="panel_2.0x.png" scale-factor="2"/>
+		<bitmap name="vu_face" path="vu_face.png"/>
+		<bitmap name="vu_face#2x" path="vu_face_2.0x.png" scale-factor="2"/>
+		<bitmap name="vu_cap" path="vu_cap.png"/>
+		<bitmap name="vu_cap#2x" path="vu_cap_2.0x.png" scale-factor="2"/>
+		<bitmap name="knob" path="knob.png"/>
+		<bitmap name="knob#2x" path="knob_2.0x.png" scale-factor="2"/>
+	</bitmaps>
+	<fonts>
+		<font name="df_title" font-name="Arial" size="17" bold="true"/>
+		<font name="df_label" font-name="Arial" size="12"/>
+		<font name="df_small" font-name="Arial" size="10" bold="true"/>
+		<font name="df_value" font-name="Arial" size="11"/>
+		<font name="df_button" font-name="Arial" size="11" bold="true"/>
+	</fonts>
+	<colors>
+		<color name="df_text" rgba="#e4ddcdff"/>
+		<color name="df_dim" rgba="#80858dff"/>
+		<color name="df_amber" rgba="#e2a03fff"/>
+		<color name="df_track" rgba="#0b0c0dff"/>
+		<color name="df_knob_dot" rgba="#f0e9daff"/>
+		<color name="df_button_frame" rgba="#08090aff"/>
+		<color name="df_button_text_on" rgba="#1b1408ff"/>
+		<color name="df_transparent" rgba="#00000000"/>
+	</colors>
+	<gradients>
+		<gradient name="df_button">
+			<color-stop rgba="#3d4046ff" start="0"/>
+			<color-stop rgba="#26282cff" start="1"/>
+		</gradient>
+		<gradient name="df_button_on">
+			<color-stop rgba="#efb357ff" start="0"/>
+			<color-stop rgba="#c4862cff" start="1"/>
+		</gradient>
+	</gradients>
+	<control-tags>
+		<control-tag name="Input" tag="1"/>
+		<control-tag name="Mix" tag="2"/>
+		<control-tag name="Output" tag="3"/>
+		<control-tag name="Bypass" tag="4"/>
+		<control-tag name="LoadCapture" tag="5"/>
+	</control-tags>
+	<template name="view" class="CViewContainer" origin="0, 0" size="760, 424" minSize="760, 424" maxSize="760, 424" bitmap="panel" background-color="df_transparent" transparent="false" mouse-enabled="true">
+
+		<view class="CTextLabel" origin="24, 9" size="240, 22" title="VIRTUAL DEVICES" font="df_title" font-color="df_text" text-alignment="left" transparent="true" style-no-frame="true" mouse-enabled="false"/>
+		<view class="CTextLabel" origin="24, 30" size="72, 14" title="EMULATOR" font="df_small" font-color="df_amber" text-alignment="left" transparent="true" style-no-frame="true" mouse-enabled="false"/>
+		<view class="CTextLabel" custom-view-name="PluginVersion" origin="100, 30" size="70, 14" title="" font="df_small" font-color="df_dim" text-alignment="left" transparent="true" style-no-frame="true" mouse-enabled="false"/>
+
+		<view class="CTextButton" origin="486, 13" size="140, 26" control-tag="LoadCapture" kick-style="true" title="CARGAR CAPTURA" font="df_button" text-color="df_text" text-color-highlighted="df_button_text_on" gradient="df_button" gradient-highlighted="df_button_on" frame-color="df_button_frame" frame-color-highlighted="df_button_frame" frame-width="1" round-radius="4" text-alignment="center"/>
+		<view class="CTextButton" origin="636, 13" size="100, 26" control-tag="Bypass" kick-style="false" title="BYPASS" font="df_button" text-color="df_text" text-color-highlighted="df_button_text_on" gradient="df_button" gradient-highlighted="df_button_on" frame-color="df_button_frame" frame-color-highlighted="df_button_frame" frame-width="1" round-radius="4" text-alignment="center"/>
+
+		<view class="CTextLabel" origin="24, 60" size="66, 16" title="CAPTURA" font="df_small" font-color="df_dim" text-alignment="left" transparent="true" style-no-frame="true" mouse-enabled="false"/>
+		<view class="CTextLabel" custom-view-name="CaptureName" origin="90, 59" size="370, 18" title="" font="df_label" font-color="df_text" text-alignment="left" transparent="true" style-no-frame="true" mouse-enabled="false"/>
+		<view class="CTextLabel" origin="470, 60" size="46, 16" title="AUTOR" font="df_small" font-color="df_dim" text-alignment="right" transparent="true" style-no-frame="true" mouse-enabled="false"/>
+		<view class="CTextLabel" custom-view-name="CaptureAuthor" origin="522, 59" size="214, 18" title="" font="df_label" font-color="df_text" text-alignment="left" transparent="true" style-no-frame="true" mouse-enabled="false"/>
+
+		<view class="CView" custom-view-name="VUMeterIn" origin="24, 86" size="349, 196" mouse-enabled="false"/>
+		<view class="CView" custom-view-name="VUMeterOut" origin="387, 86" size="349, 196" mouse-enabled="false"/>
+		<view class="CTextLabel" origin="24, 290" size="349, 14" title="ENTRADA" font="df_small" font-color="df_dim" text-alignment="center" transparent="true" style-no-frame="true" mouse-enabled="false"/>
+		<view class="CTextLabel" origin="387, 290" size="349, 14" title="SALIDA" font="df_small" font-color="df_dim" text-alignment="center" transparent="true" style-no-frame="true" mouse-enabled="false"/>
+
+		<view class="CKnob" origin="162, 314" size="72, 72" control-tag="Input" bitmap="knob" angle-start="135" angle-range="270" corona-drawing="true" corona-outline="true" circle-drawing="true" corona-inset="3" value-inset="18" handle-line-width="2.5" corona-color="df_amber" handle-color="df_knob_dot" handle-shadow-color="df_track" transparent="true"/>
+		<view class="CKnob" origin="344, 314" size="72, 72" control-tag="Mix" bitmap="knob" angle-start="135" angle-range="270" corona-drawing="true" corona-outline="true" circle-drawing="true" corona-inset="3" value-inset="18" handle-line-width="2.5" corona-color="df_amber" handle-color="df_knob_dot" handle-shadow-color="df_track" transparent="true"/>
+		<view class="CKnob" origin="525, 314" size="72, 72" control-tag="Output" bitmap="knob" angle-start="135" angle-range="270" corona-drawing="true" corona-outline="true" circle-drawing="true" corona-inset="3" value-inset="18" handle-line-width="2.5" corona-color="df_amber" handle-color="df_knob_dot" handle-shadow-color="df_track" transparent="true"/>
+
+		<view class="CTextLabel" origin="148, 388" size="100, 14" title="ENTRADA" font="df_small" font-color="df_dim" text-alignment="center" transparent="true" style-no-frame="true" mouse-enabled="false"/>
+		<view class="CTextLabel" origin="330, 388" size="100, 14" title="MEZCLA" font="df_small" font-color="df_dim" text-alignment="center" transparent="true" style-no-frame="true" mouse-enabled="false"/>
+		<view class="CTextLabel" origin="511, 388" size="100, 14" title="SALIDA" font="df_small" font-color="df_dim" text-alignment="center" transparent="true" style-no-frame="true" mouse-enabled="false"/>
+
+		<view class="CParamDisplay" origin="148, 403" size="100, 16" control-tag="Input" font="df_value" font-color="df_text" text-alignment="center" transparent="true" style-no-frame="true"/>
+		<view class="CParamDisplay" origin="330, 403" size="100, 16" control-tag="Mix" font="df_value" font-color="df_text" text-alignment="center" transparent="true" style-no-frame="true"/>
+		<view class="CParamDisplay" origin="511, 403" size="100, 16" control-tag="Output" font="df_value" font-color="df_text" text-alignment="center" transparent="true" style-no-frame="true"/>
+	</template>
+</vstgui-ui-description>

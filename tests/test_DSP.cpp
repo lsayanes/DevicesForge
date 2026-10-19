@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <algorithm>
 #include <clocale>
 #include <cmath>
 #include <complex>
@@ -19,6 +20,8 @@
 #include "IRResampler.h"
 #include "CaptureFile.h"
 #include "OfflineCapturer.h"
+#include "VuMeter.h"
+#include "VuFace.h"
 
 using namespace DevicesForge;
 
@@ -1200,6 +1203,134 @@ TEST(OfflineCapturerTest, HtmlReportShowsBandsAndEscapesText) {
 // ============================================================================
 // Main
 // ============================================================================
+
+// ============================================================================
+// VuMeter / VuFace (Emulador)
+// ============================================================================
+
+namespace
+{
+    constexpr double kVuRate = 48000.0;
+    constexpr int32_t kVuBlock = 512;
+
+    /* Pasa un seno de la amplitud pedida por el VU y guarda la aguja por bloque. */
+    std::vector<float> runVuSine(DevicesForge::VuMeter& vu, float amplitude, double seconds)
+    {
+        const int32_t total = static_cast<int32_t>(seconds * kVuRate);
+        std::vector<float> block(static_cast<size_t>(kVuBlock));
+        std::vector<float> needles;
+        int32_t n = 0;
+        while (n < total)
+        {
+            const int32_t count = std::min(kVuBlock, total - n);
+            for (int32_t i = 0; i < count; ++i)
+                block[static_cast<size_t>(i)] = amplitude *
+                    static_cast<float>(std::sin(2.0 * M_PI * 1000.0 * (n + i) / kVuRate));
+            const float* channels[1] = {block.data()};
+            vu.process(channels, 1, count);
+            needles.push_back(vu.getNeedle());
+            n += count;
+        }
+        return needles;
+    }
+
+    float sineAmplitudeForRms(float dbfs)
+    {
+        return std::pow(10.0f, dbfs / 20.0f) * std::sqrt(2.0f);
+    }
+}
+
+TEST(VuMeterTest, SineAtReferenceReadsZeroVu) {
+    DevicesForge::VuMeter vu;
+    vu.prepare(kVuRate, -18.0f);
+    const auto needles = runVuSine(vu, sineAmplitudeForRms(-18.0f), 2.0);
+    EXPECT_NEAR(needles.back(), 1.0f, 0.01f);
+
+    /* 10 dB abajo: la aguja sigue la amplitud, no los dB */
+    vu.reset();
+    const auto low = runVuSine(vu, sineAmplitudeForRms(-28.0f), 2.0);
+    EXPECT_NEAR(low.back(), std::pow(10.0f, -0.5f), 0.005f);
+}
+
+TEST(VuMeterTest, StepResponseMatchesStandardBallistics) {
+    DevicesForge::VuMeter vu;
+    vu.prepare(kVuRate, -18.0f);
+
+    /* Escalon a 0 VU: 99 % en 300 ms (+-10 %), sobrepico 1-1,5 % */
+    const auto needles = runVuSine(vu, sineAmplitudeForRms(-18.0f), 1.5);
+    const float settled = needles.back();
+    double riseMs = -1.0;
+    float maxNeedle = 0.0f;
+    for (size_t b = 0; b < needles.size(); ++b)
+    {
+        if (riseMs < 0.0 && needles[b] >= 0.99f * settled)
+            riseMs = static_cast<double>((b + 1) * kVuBlock) * 1000.0 / kVuRate;
+        maxNeedle = std::max(maxNeedle, needles[b]);
+    }
+    const float overshoot = maxNeedle / settled - 1.0f;
+    std::printf("[VuMeter] 99%% en %.1f ms, sobrepico %.2f %%\n", riseMs, overshoot * 100.0f);
+    EXPECT_GE(riseMs, 270.0);
+    EXPECT_LE(riseMs, 330.0);
+    EXPECT_GE(overshoot, 0.005f);
+    EXPECT_LE(overshoot, 0.02f);
+}
+
+TEST(VuMeterTest, SilenceRestsAndLoudInputStopsAtPeg) {
+    DevicesForge::VuMeter vu;
+    vu.prepare(kVuRate, -18.0f);
+    const auto silent = runVuSine(vu, 0.0f, 0.5);
+    EXPECT_EQ(silent.back(), 0.0f);
+    EXPECT_EQ(vu.getPeak(), 0.0f);
+
+    /* +20 dB sobre 0 VU: la aguja frena en el tope y vuelve sin quedar pegada */
+    const auto loud = runVuSine(vu, sineAmplitudeForRms(2.0f), 1.0);
+    EXPECT_FLOAT_EQ(*std::max_element(loud.begin(), loud.end()), DevicesForge::VU_NEEDLE_MAX);
+    const auto back = runVuSine(vu, 0.0f, 1.5);
+    EXPECT_LT(back.back(), 0.01f);
+}
+
+TEST(VuMeterTest, PeakHoldsAndDecays) {
+    DevicesForge::VuMeter vu;
+    vu.prepare(kVuRate, -18.0f);
+
+    /* Un solo pico de 0,9 y despues 0,3 s de silencio: cae a 0,9 / e */
+    std::vector<float> block(static_cast<size_t>(kVuBlock), 0.0f);
+    block[10] = -0.9f;
+    const float* channels[1] = {block.data()};
+    vu.process(channels, 1, kVuBlock);
+    EXPECT_FLOAT_EQ(vu.getPeak(), 0.9f);
+
+    block[10] = 0.0f;
+    const int32_t blocks = static_cast<int32_t>(0.3 * kVuRate) / kVuBlock;
+    for (int32_t b = 0; b < blocks; ++b)
+        vu.process(channels, 1, kVuBlock);
+    const double elapsed = static_cast<double>(blocks * kVuBlock) / kVuRate;
+    EXPECT_NEAR(vu.getPeak(), 0.9 * std::exp(-elapsed / 0.3), 1.0e-4);
+}
+
+TEST(VuFaceTest, MarksMapToMeasuredAngles) {
+    using namespace DevicesForge::Emulator;
+    for (const VuMark& mark : VU_MARKS)
+        EXPECT_NEAR(vuNeedleAngleDeg(std::pow(10.0f, mark.db / 20.0f)), mark.deg, 1.0e-3f) << mark.db << " dB";
+
+    EXPECT_FLOAT_EQ(vuNeedleAngleDeg(0.0f), VU_REST_DEG);
+    EXPECT_FLOAT_EQ(vuNeedleAngleDeg(-1.0f), VU_REST_DEG);
+    EXPECT_FLOAT_EQ(vuNeedleAngleDeg(DevicesForge::VU_NEEDLE_MAX), VU_PEG_DEG);
+
+    /* Debajo de -20 queda entre el reposo y la primera marca */
+    const float low = vuNeedleAngleDeg(0.05f);
+    EXPECT_GT(low, VU_REST_DEG);
+    EXPECT_LT(low, VU_MARKS[0].deg);
+
+    /* Monotona en todo el recorrido */
+    float previous = VU_REST_DEG;
+    for (int i = 1; i <= 1800; ++i)
+    {
+        const float angle = vuNeedleAngleDeg(static_cast<float>(i) / 1000.0f);
+        EXPECT_GE(angle, previous) << "aguja " << i / 1000.0f;
+        previous = angle;
+    }
+}
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);

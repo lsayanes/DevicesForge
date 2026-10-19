@@ -14,6 +14,8 @@ add_library(dfcore STATIC
     IRResampler.h
     CaptureFile.cpp
     CaptureFile.h
+    VuMeter.cpp
+    VuMeter.h
 )
 
 target_include_directories(dfcore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

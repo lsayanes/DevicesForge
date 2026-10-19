@@ -18,7 +18,11 @@
 
 set -euo pipefail
 
-PLUGIN_NAME="DevicesForge.vst3"
+# Cubase no sigue bien un symlink: cada plugin se copia como bundle.
+PLUGIN_NAMES=(
+    DevicesForge.vst3
+    VirtualDevices.vst3
+)
 WORKDIR="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="$WORKDIR/build"
 BUILD_TYPE="Release"
@@ -29,7 +33,7 @@ USE_LINK=0
 
 usage() {
     cat <<'EOF'
-cpvst.sh — instala DevicesForge.vst3 para Cubase / hosts VST3
+cpvst.sh — instala DevicesForge.vst3 y VirtualDevices.vst3 para Cubase / hosts VST3
 
 Opciones:
   --debug       Usar build/VST3/Debug/
@@ -75,69 +79,61 @@ if [[ "$DO_BUILD" -eq 1 ]]; then
     "$WORKDIR/build.sh" "${BUILD_ARGS[@]}"
 fi
 
-SRC="${BUILD_DIR}/VST3/${BUILD_TYPE}/${PLUGIN_NAME}"
-
-if [[ ! -d "$SRC" ]]; then
-    echo "Error: no existe el plugin compilado:" >&2
-    echo "  $SRC" >&2
-    echo "" >&2
-    echo "Compilá primero:  ./build.sh" >&2
-    echo "  o:              ./cpvst.sh --build" >&2
-    exit 1
+if [[ "$USE_SYSTEM" -eq 1 ]]; then
+    sudo mkdir -p "$DEST"
+else
+    mkdir -p "$DEST"
 fi
 
-mkdir -p "$DEST"
-TARGET="${DEST}/${PLUGIN_NAME}"
+install_one() {
+    local name="$1"
+    local src="${BUILD_DIR}/VST3/${BUILD_TYPE}/${name}"
+    local target="${DEST}/${name}"
 
-install_copy() {
-    if [[ -e "$TARGET" ]]; then
-        echo "Reemplazando $TARGET ..."
-        rm -rf "$TARGET"
+    if [[ ! -d "$src" ]]; then
+        echo "Error: no existe el plugin compilado:" >&2
+        echo "  $src" >&2
+        echo "" >&2
+        echo "Compilá primero:  ./build.sh" >&2
+        echo "  o:              ./cpvst.sh --build" >&2
+        exit 1
     fi
-    echo "Copiando bundle..."
-    ditto "$SRC" "$TARGET"
-}
 
-install_link() {
-    if [[ -e "$TARGET" ]]; then
-        rm -rf "$TARGET"
+    echo "  Origen:  $src"
+    echo "  Destino: $target"
+    if [[ "$USE_SYSTEM" -eq 1 ]]; then
+        if [[ "$USE_LINK" -eq 1 ]]; then
+            sudo ln -sfn "$src" "$target"
+        else
+            sudo rm -rf "$target"
+            sudo ditto "$src" "$target"
+        fi
+    elif [[ "$USE_LINK" -eq 1 ]]; then
+        rm -rf "$target"
+        ln -sfn "$src" "$target"
+    else
+        rm -rf "$target"
+        ditto "$src" "$target"
     fi
-    echo "Creando symlink → $SRC"
-    ln -sfn "$SRC" "$TARGET"
+    echo ""
 }
 
 echo "============================================"
 echo "  Instalar VST3 ($BUILD_TYPE)"
 echo "============================================"
-echo "  Origen:  $SRC"
-echo "  Destino: $TARGET"
-echo ""
 
-if [[ "$USE_SYSTEM" -eq 1 ]]; then
-    if [[ "$USE_LINK" -eq 1 ]]; then
-        sudo ln -sfn "$SRC" "$TARGET"
-    else
-        sudo mkdir -p "$DEST"
-        if [[ -e "$TARGET" ]]; then
-            sudo rm -rf "$TARGET"
-        fi
-        sudo ditto "$SRC" "$TARGET"
-    fi
-else
-    if [[ "$USE_LINK" -eq 1 ]]; then
-        install_link
-    else
-        install_copy
-    fi
-fi
+for name in "${PLUGIN_NAMES[@]}"; do
+    install_one "$name"
+done
 
-echo ""
 echo "Listo."
 echo ""
 echo "Cubase LE / Elements / Pro:"
 echo "  1. Cerrá Cubase si estaba abierto (recomendado tras instalar)."
 echo "  2. Abrí Cubase → Studio → VST Plug-in Manager."
-echo "  3. Engranaje → Rescan All (o buscá «DevicesForge»)."
+echo "  3. Engranaje → Rescan All."
+echo "     El emulador figura como «Virtual Devices» (categoría Fx)."
+echo "     El capturador sigue como «DevicesForge»."
 echo ""
 echo "Si agregaste una ruta custom en Cubase, usá:"
 echo "  ./cpvst.sh --dest '/ruta/que/configuraste'"

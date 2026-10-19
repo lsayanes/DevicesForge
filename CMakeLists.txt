@@ -39,6 +39,7 @@ FetchContent_MakeAvailable(pffft)
 add_subdirectory(libs)
 if(BUILD_PLUGIN)
     add_subdirectory(products/capturer-vst)
+    add_subdirectory(products/emulator-vst)
 endif()
 add_subdirectory(products/capturer)
 

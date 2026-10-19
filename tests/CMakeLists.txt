@@ -17,6 +17,12 @@ add_executable(DevicesForgeTests
     test_DSP.cpp
 )
 
+# VuFace.h (escala del VU del Emulador) es solo encabezado y no depende del SDK.
+target_include_directories(DevicesForgeTests
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/products/emulator-vst
+)
+
 target_link_libraries(DevicesForgeTests
     PRIVATE
         dfcore

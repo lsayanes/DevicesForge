@@ -1,0 +1,17 @@
+sample_rate=48000
+repeats=3
+repeats_used=3
+speed_ratio=1.00005
+peak=0.16782
+peak_dbfs=-15.5031
+noise_floor_dbfs=-60
+signal_rms_dbfs=-27.156
+snr_db=45.9802
+clipped_samples=0
+ir_samples=24000
+band_gain_db=-21.7433
+polarity=invertida_corregida
+peak_sample=1
+ir_phase=minima_magnitud_promedio
+quality=ok
+limit=velocidad_media_corregida_wow_flutter_no

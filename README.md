@@ -64,14 +64,15 @@ DevicesForge/
 │   ├── dfmeasure/       # Sin VST: barrido, captura, deconvolución, post-proceso
 │   └── dfvst/           # Helpers de plugin: diálogos nativos de archivo
 ├── products/
-│   └── capturer-vst/    # VST3 de captura actual (DevicesForge.vst3)
+│   ├── capturer-vst/    # VST3 de captura actual (DevicesForge.vst3)
+│   └── emulator-vst/    # VirtualDevices.vst3: carga una captura, editor VSTGUI con VU
 ├── host/                # Host CLI mínimo (carga .vst3, genera WAV de prueba)
 ├── tests/               # Google Test — DSP aislado
 ├── docs/                # Especificación y guías
 ├── scripts/             # install-deps.sh / .bat
 ├── external/            # vst3sdk (no versionado; ver install-deps)
 ├── build.sh             # Configura CMake y compila
-└── cpvst.sh             # Copia DevicesForge.vst3 a ~/Library/.../VST3
+└── cpvst.sh             # Copia DevicesForge.vst3 y VirtualDevices.vst3 a ~/Library/.../VST3
 ```
 
 **Targets CMake principales**
@@ -79,6 +80,7 @@ DevicesForge/
 | Target | Descripción |
 |--------|-------------|
 | `DevicesForge` | Plugin VST3 de captura (`products/capturer-vst`) |
+| `DevicesForgeEmulator` | Plugin VST3 `VirtualDevices.vst3` (`products/emulator-vst`); el editor se arma con `resource/editor.uidesc` y las imágenes con `resource/make_ui_assets.py` |
 | `dfcore` | Librería estática: FFT, convolución, IR/WAV I/O |
 | `dfmeasure` | Librería estática: medición y deconvolución (usa `dfcore`) |
 | `dfvst` | Librería estática: diálogos de archivo (usa `dfcore`) |
