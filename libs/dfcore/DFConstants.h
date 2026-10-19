@@ -23,6 +23,9 @@ namespace DevicesForge
 	/** Convolución en tiempo real (DynamicConvolver): FFT y bloque interno.
 	    blockSize = CONV_FFT_SIZE / 2 → latencia del path convolucionado (~21 ms @48k). */
 	constexpr int32_t CONV_FFT_SIZE = 2048;
+	/** El seco del Mix se retrasa hasta el pico de la IR, como maximo esto (~5 ms @48k).
+	    Si el pico esta mas lejos, el seco queda en 0. */
+	constexpr int32_t CONV_DRY_ALIGN_MAX = 256;
 
 	/** Tope de seguridad al restaurar una IR desde el estado del proyecto:
 	    evita reservar memoria absurda si el stream viene corrupto. */

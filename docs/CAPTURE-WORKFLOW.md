@@ -227,6 +227,21 @@ Estructura de archivos:
 ### Problema: Respuesta no plana
 **Solución:** Verificar calibración de interface, compensar con EQ de referencia
 
+## 8. Capturador offline
+
+Sin plugin. Por comando es `dfcapture` (`build/bin/dfcapture`). Durante el desarrollo: `./build.sh` y después `./run.sh` (abre `build/Capturador.app`). Cuando la app esté estable, `./package.sh` la instala en Aplicaciones. Duración y repeticiones se eligen una vez y valen para generar y para analizar.
+
+```text
+dfcapture make-sweep --rate 48000 --duration 5 --repeats 3 -o sweep.wav
+dfcapture analyze grabacion.wav -o equipo.dfcapture --name "..." --author "..."
+```
+
+`analyze` tiene que repetir el mismo `--duration` y `--repeats`. El sample rate lo lee del WAV. El archivo de barrido es: silencio, marca, N barridos separados por 0,5 s, marca, silencio. Esa cola de 0,5 s es el largo máximo de la IR; una cola más larga se mezcla con el barrido siguiente.
+
+Si la cinta corrió más rápido o más lento, la distancia entre las dos marcas no coincide con la esperada y la grabación se remuestrea antes de deconvolucionar. Eso corrige la **velocidad media**. El wow y el flutter (la variación rápida) no se corrigen: borronean los agudos. El reporte `equipo.quality.txt` lo deja anotado en `limit=`.
+
+Las pasadas no se suman como IR: con wow cada una llega corrida distinto y la suma cancela bandas (en la Revox A77 de prueba, −6 dB en 1,3–2,5 kHz). Se promedia la **magnitud** (|H|²) de las pasadas y la IR se arma de **fase mínima** (cepstro real). La respuesta en frecuencia es la de la cinta; el pico queda al inicio y positivo, así el Mix del plugin no hace peine aunque el equipo invierta la polaridad (`polarity=` en el reporte). Lo que no se guarda es el corrimiento temporal de cada pasada, que en una cinta es mayormente wow.
+
 ---
 
 *Guía v1.1 - Septiembre 2026*

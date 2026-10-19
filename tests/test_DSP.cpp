@@ -17,6 +17,7 @@
 #include "WavIO.h"
 #include "IRResampler.h"
 #include "CaptureFile.h"
+#include "OfflineCapturer.h"
 
 using namespace DevicesForge;
 
@@ -216,6 +217,30 @@ TEST_F(DynamicConvolverTest, MixZeroOutputsDelayedDry) {
 
     for (int32_t i = 0; i < total - latency; ++i)
         EXPECT_NEAR(output[i + latency], input[i], 1e-4f) << "sample " << i;
+}
+
+// IR con el pico corrido (cinta, captura con pre-roll): el seco se retrasa
+// hasta el pico, asi al 50% no hay filtro peine.
+TEST_F(DynamicConvolverTest, DryFollowsIrPeakSoMixDoesNotComb) {
+    const int32_t peak = 30;
+    std::vector<float> ir(64, 0.0f);
+    ir[peak] = 1.0f;
+    convolver->getIRManager().setLevelIR(0, ir, 0.0f);
+    convolver->setMix(0.5f);
+
+    const int32_t latency = convolver->getLatencySamples();
+    const int32_t total = latency * 4;
+    std::vector<float> input(total), output(total);
+    for (int32_t i = 0; i < total; ++i)
+        input[i] = (i % 7 == 0) ? 1.0f : -0.3f;
+    output = input;
+
+    float* bufs[1] = { output.data() };
+    ASSERT_TRUE(convolver->process(bufs, 1, total, 0));
+    EXPECT_EQ(convolver->getDryOffsetSamples(), peak);
+
+    for (int32_t i = 0; i < total - latency - peak; ++i)
+        EXPECT_NEAR(output[i + latency + peak], input[i], 1e-4f) << "sample " << i;
 }
 
 // IR más larga que la FFT (varias particiones): comparar contra convolución directa.
@@ -710,8 +735,43 @@ TEST(SweepDeconvolverTest, IdentityRecordedMatchesReference) {
             peakIndex = i;
         }
     }
-    EXPECT_LT(peakIndex, 32);
+    EXPECT_NEAR(peakIndex, DECONV_PRE_ROLL, 2);
     EXPECT_GT(peakValue, 0.0f);
+}
+
+// La grabacion adelantada deja el pico al final del FFT. Hay que traerlo
+// a DECONV_PRE_ROLL: si se recorta, la IR que queda es el residuo grave.
+TEST(SweepDeconvolverTest, EarlyRecordingStaysNearStart) {
+    SignalGenerator gen;
+    gen.prepare(48000.0);
+    gen.setType(SignalType::SineSweep);
+    gen.setDuration(0.5f);
+    gen.start();
+
+    const float* ref = gen.getReference();
+    const int32_t refLen = gen.getReferenceLength();
+    ASSERT_GT(refLen, 400);
+
+    const int32_t lead = 200;
+    std::vector<float> recorded(static_cast<size_t>(refLen), 0.0f);
+    for (int32_t i = 0; i < refLen - lead; ++i)
+        recorded[static_cast<size_t>(i)] = ref[static_cast<size_t>(i + lead)];
+
+    std::vector<float> ir;
+    ASSERT_TRUE(SweepDeconvolver::deconvolve(recorded.data(), refLen, ref, refLen, ir, 0, 48000.0, 0));
+
+    int32_t peakIndex = 0;
+    float peakValue = 0.0f;
+    const int32_t scan = std::min(static_cast<int32_t>(ir.size()), 4096);
+    for (int32_t i = 0; i < scan; ++i) {
+        const float value = std::abs(ir[static_cast<size_t>(i)]);
+        if (value > peakValue) {
+            peakValue = value;
+            peakIndex = i;
+        }
+    }
+    EXPECT_GT(peakValue, 0.05f);
+    EXPECT_NEAR(peakIndex, DECONV_PRE_ROLL, 2);
 }
 
 // ============================================================================
@@ -843,6 +903,202 @@ TEST(CaptureFileTest, BandNormalizeScalesImpulseToUnity) {
     ASSERT_TRUE(normalizeBandUnity(ir, 48000.0, gainDb));
     EXPECT_NEAR(ir[0], 1.0f, 1.0e-3f);
     EXPECT_NEAR(gainDb, static_cast<float>(20.0 * std::log10(0.25)), 0.05f);
+}
+
+// ============================================================================
+// Capturador offline
+// ============================================================================
+
+namespace {
+
+constexpr int32_t kEchoDelay = 180;
+
+int32_t peakIndexOf(const std::vector<float>& ir, int32_t from, int32_t to) {
+    from = std::max(0, from);
+    to = std::min(to, static_cast<int32_t>(ir.size()));
+    int32_t at = from;
+    float best = 0.0f;
+    for (int32_t i = from; i < to; ++i) {
+        const float value = std::abs(ir[static_cast<size_t>(i)]);
+        if (value > best) {
+            best = value;
+            at = i;
+        }
+    }
+    return at;
+}
+
+void applyDirectPlusEcho(const std::vector<float>& in, std::vector<float>& out) {
+    out.assign(in.size() + static_cast<size_t>(kEchoDelay), 0.0f);
+    for (size_t i = 0; i < in.size(); ++i) {
+        out[i] += in[i];
+        out[i + static_cast<size_t>(kEchoDelay)] += 0.5f * in[i];
+    }
+}
+
+float shapeCorrelation(const std::vector<float>& a, const std::vector<float>& b) {
+    const int32_t count = std::min(static_cast<int32_t>(std::min(a.size(), b.size())), 1024);
+    double dot = 0.0;
+    double energyA = 0.0;
+    double energyB = 0.0;
+    for (int32_t i = 0; i < count; ++i) {
+        const double av = a[static_cast<size_t>(i)];
+        const double bv = b[static_cast<size_t>(i)];
+        dot += av * bv;
+        energyA += av * av;
+        energyB += bv * bv;
+    }
+    if (energyA <= 0.0 || energyB <= 0.0)
+        return 0.0f;
+    return static_cast<float>(dot / std::sqrt(energyA * energyB));
+}
+
+} // namespace
+
+TEST(OfflineCapturerTest, RecoversDelayedIrWithSpeedAndNoise) {
+    SweepSpec spec;
+    spec.sampleRate = 48000.0;
+    spec.durationSeconds = 1.0f;
+    spec.repeats = 2;
+
+    std::vector<float> sweep;
+    SweepLayout layout;
+    ASSERT_TRUE(OfflineCapturer::makeSweep(spec, sweep, layout));
+    ASSERT_GT(layout.syncSpan, 0);
+
+    std::vector<float> through;
+    applyDirectPlusEcho(sweep, through);
+
+    AnalyzeOptions cleanOptions;
+    cleanOptions.sweep = spec;
+    cleanOptions.name = "limpia";
+    CaptureData cleanCapture;
+    QualityReport cleanReport;
+    ASSERT_TRUE(OfflineCapturer::analyze(through.data(), static_cast<int32_t>(through.size()),
+                                         spec.sampleRate, cleanOptions, cleanCapture, cleanReport));
+    ASSERT_EQ(cleanCapture.channels.size(), 1u);
+    const std::vector<float>& cleanIr = cleanCapture.channels[0];
+    const int32_t directPeak = peakIndexOf(cleanIr, 0, 120);
+    const int32_t echoPeak = peakIndexOf(cleanIr, directPeak + 120, directPeak + 240);
+    EXPECT_LT(directPeak, 8);
+    EXPECT_NEAR(echoPeak - directPeak, kEchoDelay, 30);
+    EXPECT_GT(std::abs(cleanIr[static_cast<size_t>(echoPeak)]),
+              std::abs(cleanIr[static_cast<size_t>(directPeak)]) * 0.15f);
+    EXPECT_NEAR(cleanReport.speedRatio, 1.0, 0.002);
+    EXPECT_EQ(cleanReport.repeatsUsed, spec.repeats);
+
+    std::vector<float> sped;
+    ASSERT_TRUE(IRResampler::resample(through.data(), static_cast<int32_t>(through.size()),
+                                      spec.sampleRate, sped, spec.sampleRate * 0.995));
+    uint32_t noise = 0x123456u;
+    for (float& sample : sped) {
+        noise = noise * 1664525u + 1013904223u;
+        const float unit = static_cast<float>(static_cast<int32_t>(noise >> 8) % 2000 - 1000) / 1000.0f;
+        sample += unit * 0.002f;
+    }
+
+    AnalyzeOptions dirtyOptions;
+    dirtyOptions.sweep = spec;
+    dirtyOptions.name = "cinta";
+    CaptureData dirtyCapture;
+    QualityReport dirtyReport;
+    ASSERT_TRUE(OfflineCapturer::analyze(sped.data(), static_cast<int32_t>(sped.size()),
+                                         spec.sampleRate, dirtyOptions, dirtyCapture, dirtyReport))
+        << dirtyReport.text;
+    EXPECT_NEAR(dirtyReport.speedRatio, 0.995, 0.003);
+    EXPECT_EQ(dirtyReport.repeatsUsed, spec.repeats);
+    EXPECT_NEAR(peakIndexOf(dirtyCapture.channels[0], directPeak + 120, directPeak + 240), echoPeak, 8);
+    EXPECT_GT(shapeCorrelation(cleanCapture.channels[0], dirtyCapture.channels[0]), 0.9f);
+    EXPECT_NE(dirtyReport.text.find("wow_flutter"), std::string::npos);
+}
+
+// Un equipo que invierte la polaridad tiene que quedar con el pico positivo:
+// si no, el Mix del plugin resta el seco de la IR y se pierden los graves.
+TEST(OfflineCapturerTest, InvertedDeviceGetsPositivePeak) {
+    SweepSpec spec;
+    spec.sampleRate = 48000.0;
+    spec.durationSeconds = 0.5f;
+    spec.repeats = 1;
+
+    std::vector<float> sweep;
+    SweepLayout layout;
+    ASSERT_TRUE(OfflineCapturer::makeSweep(spec, sweep, layout));
+
+    /* Sync en fase y barrido invertido, corrido 30 muestras */
+    std::vector<float> through(sweep.size() + 64, 0.0f);
+    const int32_t sweepFrom = layout.leadSilence + layout.syncLength;
+    const int32_t sweepTo = layout.leadSilence + layout.syncSpan;
+    for (int32_t i = 0; i < static_cast<int32_t>(sweep.size()); ++i) {
+        const bool inSweeps = i >= sweepFrom && i < sweepTo;
+        const int32_t at = inSweeps ? i + 30 : i;
+        through[static_cast<size_t>(at)] += inSweeps ? -sweep[static_cast<size_t>(i)] : sweep[static_cast<size_t>(i)];
+    }
+
+    AnalyzeOptions options;
+    options.sweep = spec;
+    CaptureData capture;
+    QualityReport report;
+    ASSERT_TRUE(OfflineCapturer::analyze(through.data(), static_cast<int32_t>(through.size()),
+                                         spec.sampleRate, options, capture, report))
+        << report.text;
+    const std::vector<float>& ir = capture.channels[0];
+    const int32_t peak = peakIndexOf(ir, 0, 256);
+    EXPECT_EQ(peak, report.peakIndex);
+    EXPECT_GT(ir[static_cast<size_t>(peak)], 0.0f);
+    EXPECT_TRUE(report.polarityInverted);
+    EXPECT_NE(report.text.find("polarity=invertida_corregida"), std::string::npos);
+}
+
+// Cinta con wow: cada pasada llega con otro retraso. Sumar las IR hace un
+// peine (12 muestras -> pozo en 2 kHz). Promediando |H| la respuesta queda plana.
+TEST(OfflineCapturerTest, PassesWithDifferentDelayDoNotComb) {
+    SweepSpec spec;
+    spec.sampleRate = 48000.0;
+    spec.durationSeconds = 0.5f;
+    spec.repeats = 2;
+
+    std::vector<float> sweep;
+    SweepLayout layout;
+    ASSERT_TRUE(OfflineCapturer::makeSweep(spec, sweep, layout));
+
+    /* Corro solo la segunda pasada 12 muestras */
+    const int32_t shift = 12;
+    const int32_t secondFrom = layout.leadSilence + layout.syncLength + layout.gapLength +
+                               layout.sweepLength + layout.gapLength;
+    const int32_t secondTo = secondFrom + layout.sweepLength;
+    std::vector<float> through(sweep.size() + 64, 0.0f);
+    for (int32_t i = 0; i < static_cast<int32_t>(sweep.size()); ++i) {
+        const int32_t at = (i >= secondFrom && i < secondTo) ? i + shift : i;
+        through[static_cast<size_t>(at)] += sweep[static_cast<size_t>(i)];
+    }
+
+    AnalyzeOptions options;
+    options.sweep = spec;
+    CaptureData capture;
+    QualityReport report;
+    ASSERT_TRUE(OfflineCapturer::analyze(through.data(), static_cast<int32_t>(through.size()),
+                                         spec.sampleRate, options, capture, report))
+        << report.text;
+
+    /* Comparo la energia en 1,5-2,5 kHz contra 500-1000 Hz */
+    const int32_t fftSize = 32768;
+    FFTProcessor fft;
+    ASSERT_TRUE(fft.prepare(fftSize));
+    std::vector<float> padded(static_cast<size_t>(fftSize), 0.0f);
+    const std::vector<float>& ir = capture.channels[0];
+    std::copy(ir.begin(), ir.begin() + std::min(ir.size(), padded.size()), padded.begin());
+    std::vector<std::complex<float>> spec2(static_cast<size_t>(fft.getNumBins()));
+    fft.forward(padded.data(), spec2.data(), fftSize);
+    auto bandDb = [&](double lo, double hi) {
+        const int32_t from = static_cast<int32_t>(lo * fftSize / 48000.0);
+        const int32_t to = static_cast<int32_t>(hi * fftSize / 48000.0);
+        double energy = 0.0;
+        for (int32_t k = from; k < to; ++k)
+            energy += std::norm(spec2[static_cast<size_t>(k)]);
+        return 10.0 * std::log10(energy / (to - from));
+    };
+    EXPECT_NEAR(bandDb(1500.0, 2500.0) - bandDb(500.0, 1000.0), 0.0, 1.0);
+    EXPECT_LT(report.peakIndex, 8);
 }
 
 // ============================================================================

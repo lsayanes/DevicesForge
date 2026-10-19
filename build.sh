@@ -111,6 +111,23 @@ fi
 
 mkdir -p "$BUILD_DIR"
 
+QT_PREFIX=""
+if [[ -d /opt/homebrew/opt/qt/lib/cmake/Qt6 ]]; then
+    QT_PREFIX="/opt/homebrew/opt/qt"
+elif [[ -d /usr/local/opt/qt/lib/cmake/Qt6 ]]; then
+    QT_PREFIX="/usr/local/opt/qt"
+elif command -v brew >/dev/null 2>&1; then
+    QT_PREFIX="$(brew --prefix qt 2>/dev/null || true)"
+fi
+
+CMAKE_QT_ARGS=()
+if [[ -n "$QT_PREFIX" && -d "$QT_PREFIX/lib/cmake/Qt6" ]]; then
+    echo "Qt6 encontrado en: $QT_PREFIX"
+    CMAKE_QT_ARGS+=("-DCMAKE_PREFIX_PATH=$QT_PREFIX")
+else
+    echo "Qt6 no encontrado: se compila sin Capturador.app"
+fi
+
 echo ""
 echo "[2/3] Configurando CMake..."
 cmake -S "$WORKDIR" -B "$BUILD_DIR" \
@@ -118,7 +135,8 @@ cmake -S "$WORKDIR" -B "$BUILD_DIR" \
     -DBUILD_TESTS="$BUILD_TESTS" \
     -DBUILD_TEST_HOST="$BUILD_TEST_HOST" \
     -DSMTG_ENABLE_VST3_PLUGIN_EXAMPLES="$SDK_EXAMPLES" \
-    -DSMTG_ENABLE_VST3_HOSTING_EXAMPLES="$SDK_EXAMPLES"
+    -DSMTG_ENABLE_VST3_HOSTING_EXAMPLES="$SDK_EXAMPLES" \
+    "${CMAKE_QT_ARGS[@]+"${CMAKE_QT_ARGS[@]}"}"
 
 # ============================================================================
 # Build
@@ -150,6 +168,10 @@ echo "============================================"
 echo ""
 echo "Artefactos:"
 echo "  Plugin:  $BUILD_DIR/VST3/$BUILD_TYPE/DevicesForge.vst3"
+echo "  CLI:     $BUILD_DIR/bin/dfcapture"
+if [[ -d "$BUILD_DIR/Capturador.app" ]]; then
+    echo "  App:     $BUILD_DIR/Capturador.app"
+fi
 if [[ "$BUILD_TEST_HOST" == "ON" ]]; then
     echo "  Host:    $BUILD_DIR/bin/DevicesForgeHost"
 fi
@@ -159,5 +181,7 @@ fi
 echo ""
 if [[ "$RUN_TESTS" -eq 0 && "$BUILD_TESTS" == "ON" ]]; then
     echo "Para correr tests:  ./build.sh --test"
-    echo ""
 fi
+echo "Capturador:  ./run.sh"
+echo "Cubase:      ./cpvst.sh"
+echo ""

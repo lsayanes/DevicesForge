@@ -18,7 +18,8 @@ namespace DevicesForge
 							   int32_t referenceLength,
 							   std::vector<float>& irOut,
 							   int32_t fftSizeHint = 0,
-							   double sampleRate = SAMPLE_RATE_DEFAULT);
+							   double sampleRate = SAMPLE_RATE_DEFAULT,
+							   int32_t maxAlignLag = -1);
 
 	private:
 		/** Peso 0..1 por bin: 1 dentro de la banda del sweep, 0 fuera,

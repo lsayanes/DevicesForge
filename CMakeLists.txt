@@ -10,14 +10,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(VST3SDK_SOURCE_DIR "${CMAKE_SOURCE_DIR}/external/vst3sdk" CACHE PATH "Path to VST3 SDK")
 
 # ============================================================================
-# VST3 SDK
+# VST3 SDK (el empaquetado del capturador puede saltearlo)
 # ============================================================================
-if(EXISTS "${VST3SDK_SOURCE_DIR}/CMakeLists.txt")
-    add_subdirectory(${VST3SDK_SOURCE_DIR} ${CMAKE_BINARY_DIR}/vst3sdk)
-    smtg_enable_vst3_sdk()
-else()
-    message(FATAL_ERROR "VST3 SDK not found at ${VST3SDK_SOURCE_DIR}\n"
-                        "Run scripts/install-deps.sh first")
+option(BUILD_PLUGIN "Compila el VST3 interno" ON)
+if(BUILD_PLUGIN)
+    if(EXISTS "${VST3SDK_SOURCE_DIR}/CMakeLists.txt")
+        add_subdirectory(${VST3SDK_SOURCE_DIR} ${CMAKE_BINARY_DIR}/vst3sdk)
+        smtg_enable_vst3_sdk()
+    else()
+        message(FATAL_ERROR "VST3 SDK not found at ${VST3SDK_SOURCE_DIR}\n"
+                            "Run scripts/install-deps.sh first")
+    endif()
 endif()
 
 # ============================================================================
@@ -34,7 +37,10 @@ FetchContent_MakeAvailable(pffft)
 # Librerias comunes y productos
 # ============================================================================
 add_subdirectory(libs)
-add_subdirectory(products/capturer-vst)
+if(BUILD_PLUGIN)
+    add_subdirectory(products/capturer-vst)
+endif()
+add_subdirectory(products/capturer)
 
 # ============================================================================
 # Test Host

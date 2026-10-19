@@ -31,10 +31,12 @@ namespace DevicesForge
             channel.outFifo.assign(blockSize, 0.0f);
             channel.timeBuf.assign(fftSize, 0.0f);
             channel.fdl.clear();
+            channel.dryHistory.assign(static_cast<size_t>(CONV_DRY_ALIGN_MAX + blockSize), 0.0f);
             channel.fdlIndex = 0;
         }
 
         fifoPos = 0;
+        dryOffset = 0;
         accumBuf.assign(fftSize, 0.0f);
         ifftBuf.assign(fftSize, 0.0f);
 
@@ -51,6 +53,7 @@ namespace DevicesForge
         accumBuf.clear();
         ifftBuf.clear();
         fifoPos = 0;
+        dryOffset = 0;
         cachedIrIndex = -1;
         cachedRevision = ~0ull;
     }
@@ -135,11 +138,19 @@ namespace DevicesForge
 
         fftProcessor->inverseRaw(accumBuf.data(), ifftBuf.data());
 
-        // Wet válido = últimos B samples; dry retrasado B para quedar alineado.
+        /* Guardo el seco con historia, para poder retrasarlo hasta el pico de la IR */
+        const int32_t history = CONV_DRY_ALIGN_MAX;
+        std::memmove(channel.dryHistory.data(), channel.dryHistory.data() + B,
+                     static_cast<size_t>(history) * sizeof(float));
+        std::memcpy(channel.dryHistory.data() + history, channel.inFifo.data(),
+                    static_cast<size_t>(B) * sizeof(float));
+
+        /* Wet valido = ultimos B samples; dry retrasado B + pico para quedar en fase */
         const float wetGain = mix;
         const float dryGain = 1.0f - mix;
+        const float* dry = channel.dryHistory.data() + history - dryOffset;
         for (int32_t i = 0; i < B; ++i)
-            channel.outFifo[i] = channel.inFifo[i] * dryGain + ifftBuf[B + i] * wetGain;
+            channel.outFifo[i] = dry[i] * dryGain + ifftBuf[B + i] * wetGain;
     }
 
     void DynamicConvolver::rebuildPartitions(int32_t irIndex)
@@ -155,6 +166,15 @@ namespace DevicesForge
 
         if (irLength > MAX_IR_LENGTH)
             irLength = MAX_IR_LENGTH;
+
+        /* Ubico el pico: el seco se alinea ahi si no esta demasiado lejos */
+        int32_t peak = 0;
+        for (int32_t i = 1; i < irLength; ++i)
+        {
+            if (std::fabs(ir[i]) > std::fabs(ir[peak]))
+                peak = i;
+        }
+        dryOffset = (peak <= CONV_DRY_ALIGN_MAX) ? peak : 0;
 
         const int32_t numPartitions = (irLength + blockSize - 1) / blockSize;
         irPartitions.resize(numPartitions);

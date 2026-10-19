@@ -19,7 +19,8 @@ namespace DevicesForge
      *   cambie (IRManager::getRevision) o cambie irIndex.
      * - Estado (FIFO, FDL, historia) independiente por canal.
      * - Mix dry/wet en el dominio del tiempo con dry retrasado B samples,
-     *   así dry y wet quedan alineados (sin comb filtering).
+     *   mas la posicion del pico de la IR (hasta CONV_DRY_ALIGN_MAX), asi
+     *   dry y wet quedan alineados (sin comb filtering).
      *
      * Ver docs/DYNAMIC-CONVOLUTION-MIX.md.
      */
@@ -43,6 +44,9 @@ namespace DevicesForge
         /** Latencia del path convolucionado, en samples (= bloque interno). */
         int32_t getLatencySamples() const { return blockSize; }
 
+        /** Retraso extra del seco: muestra del pico de la IR activa. */
+        int32_t getDryOffsetSamples() const { return dryOffset; }
+
         // Load IR from file
         bool loadIR(const std::string& filePath, int32_t levelIndex = 0);
 
@@ -56,6 +60,7 @@ namespace DevicesForge
             std::vector<float> outFifo;              // B samples listos para salida
             std::vector<float> timeBuf;              // N samples: [bloque previo | actual]
             std::vector<std::vector<float>> fdl;     // frequency-delay line: P espectros raw
+            std::vector<float> dryHistory;           // CONV_DRY_ALIGN_MAX previos + B actuales
             int32_t fdlIndex { 0 };
         };
 
@@ -67,6 +72,7 @@ namespace DevicesForge
         int32_t blockSize { CONV_FFT_SIZE / 2 };
         float mix { 1.0f };
         int32_t fifoPos { 0 };
+        int32_t dryOffset { 0 };
 
         std::vector<ChannelState> channels;
         std::vector<std::vector<float>> irPartitions;  // P espectros raw de la IR

@@ -110,6 +110,8 @@ Reglas de producto:
 - Por canal: FIFO de entrada/salida + *frequency-delay line* (historia de espectros). El **estado** es independiente (L y R no se mezclan al emular), pero la **IR es la misma** en ambos. No hay captura estéreo: ver [`CAPTURE-WORKFLOW.md`](CAPTURE-WORKFLOW.md).
 - El producto y acumulación en frecuencia usan `pffft_zconvolve_accumulate` (formato interno de pffft — el orden empaquetado DC/Nyquist se maneja correctamente).
 - **Mix** se aplica en tiempo con el dry retrasado B samples, así dry y wet quedan alineados (sin comb filtering).
+- Además el dry se retrasa hasta el **pico de la IR** (hasta `CONV_DRY_ALIGN_MAX` = 256 muestras). Las capturas traen `DECONV_PRE_ROLL` = 64 muestras antes del pico (una cinta reparte energía ahí); sin este retraso, al 50 % se forma un peine. Si el pico está más lejos que 256, el dry queda en 0.
+- El capturador offline deja el pico **positivo**: un equipo que invierte la polaridad (la Revox A77 de la prueba) hacía que dry e IR se restaran entre 17 % y 70 % de Mix (−12 dB en 120–250 Hz).
 
 ### Latencia
 

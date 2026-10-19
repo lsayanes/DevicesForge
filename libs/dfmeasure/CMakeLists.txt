@@ -8,6 +8,8 @@ set(DFMEASURE_SOURCES
     IRPostProcessor.h
     SweepDeconvolver.cpp
     SweepDeconvolver.h
+    OfflineCapturer.cpp
+    OfflineCapturer.h
 )
 
 add_library(dfmeasure STATIC ${DFMEASURE_SOURCES})

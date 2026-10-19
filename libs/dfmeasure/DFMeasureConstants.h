@@ -33,10 +33,16 @@ namespace DevicesForge
 	constexpr float CAPTURE_MONITOR_SEC =
 		CAPTURE_PRE_SEC + SIGNAL_DURATION_MAX + CAPTURE_POST_TAIL_SEC + 0.5f;
 
-	/** Deconvolución: regularización de Tikhonov relativa al pico de |Ref|².
-	    Fuera de la banda del sweep el espectro de referencia es ~0; sin esto,
-	    dividir por él amplifica ruido ultrasónico hasta dominar toda la IR. */
-	constexpr float DECONV_REGULARIZATION = 1.0e-3f;
+	/** Piso de |Ref|² relativo al pico, para no amplificar un bin vacio.
+	    Tiene que quedar muy por debajo de los agudos: un barrido logaritmico
+	    trae ahi menos energia, y un piso alto (1e-3) los apagaba.
+	    Lo que queda fuera de la banda lo anula bandWeight. */
+	constexpr float DECONV_REGULARIZATION = 1.0e-6f;
+
+	/** Muestras antes del pico que conserva la IR deconvolucionada.
+	    Una cinta reparte energia antes del pico; el plugin retrasa el seco
+	    hasta el pico, asi el Mix sigue en fase (ver CONV_DRY_ALIGN_MAX). */
+	constexpr int32_t DECONV_PRE_ROLL = 64;
 
 	constexpr float IR_NORMALIZE_PEAK_TARGET = 1.0f;
 	constexpr float IR_KAISER_BETA_DEFAULT = 5.0f;
